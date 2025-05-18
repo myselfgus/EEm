@@ -1,0 +1,184 @@
+﻿using Azure.AI.OpenAI;
+using EemCore.Configuration;
+using EemCore.Data.Repositories;
+using EemCore.Models;
+using EemCore.Services.Resilient;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel;
+using System.Text;
+using System.Text.Json;
+
+namespace EemCore.Services
+{
+    /// <summary>
+    /// Serviço para enriquecimento de contexto usando IA
+    /// </summary>
+    public class ContextEnrichmentService
+    {
+        private readonly IActivityRepository _activityRepository;
+        private readonly IRelationRepository _relationRepository;
+        private readonly ResilientOpenAIClient _openAIClient;
+        private readonly IKernel _kernel;
+        private readonly EemOptions _options;
+        private readonly ILogger<ContextEnrichmentService> _logger;
+        
+        public ContextEnrichmentService(
+            IActivityRepository activityRepository,
+            IRelationRepository relationRepository,
+            ResilientOpenAIClient openAIClient,
+            IKernel kernel,
+            IOptions<EemOptions> options,
+            ILogger<ContextEnrichmentService> logger)
+        {
+            _activityRepository = activityRepository;
+            _relationRepository = relationRepository;
+            _openAIClient = openAIClient;
+            _kernel = kernel;
+            _options = options.Value;
+            _logger = logger;
+        }
+        
+        /// <summary>
+        /// Enriquece um contexto com informações relevantes
+        /// </summary>
+        public async Task<string> EnrichContextAsync(
+            string contextText,
+            string sessionId,
+            CancellationToken cancellationToken = default)
+        {
+            _logger.LogInformation("Enriquecendo contexto para sessão: {SessionId}", sessionId);
+            
+            // Buscar atividades recentes da sessão
+            var recentActivities = await _activityRepository.GetActivityEventsForSessionAsync(
+                sessionId, cancellationToken);
+                
+            // Filtrar atividades mais relevantes
+            var relevantActivities = await FilterRelevantActivitiesAsync(
+                recentActivities, contextText, cancellationToken);
+                
+            // Obter relações para as atividades relevantes
+            var activityIds = relevantActivities.Select(a => a.Id).ToList();
+            var relations = await _relationRepository.GetRelationsForEventsAsync(
+                activityIds, cancellationToken);
+                
+            // Gerar contexto enriquecido
+            var enrichedContext = await GenerateEnrichedContextAsync(
+                contextText, relevantActivities, relations, cancellationToken);
+                
+            return enrichedContext;
+        }
+        
+        /// <summary>
+        /// Filtra atividades relevantes para um contexto específico
+        /// </summary>
+        private async Task<IEnumerable<Models.ActivityJournalEvent>> FilterRelevantActivitiesAsync(
+            IEnumerable<Models.ActivityJournalEvent> activities,
+            string contextText,
+            CancellationToken cancellationToken)
+        {
+            // Implementação simples - na versão real, usaria análise semântica mais sofisticada
+            
+            // Obter embeddings para o contexto
+            var embeddingOptions = new EmbeddingsOptions
+            {
+                Input = { contextText }
+            };
+            
+            var embeddingResponse = await _openAIClient.GetEmbeddingsAsync(
+                embeddingOptions, cancellationToken);
+                
+            var contextEmbedding = embeddingResponse.Value.Data[0].Embedding.ToArray();
+            
+            // Processar apenas eventos com conteúdo significativo
+            var significantActivities = activities
+                .Where(a => !string.IsNullOrWhiteSpace(a.Content))
+                .ToList();
+                
+            // Para versão inicial, retornar os 10 mais recentes
+            // A versão real usaria cálculo de similaridade de embeddings
+            return significantActivities
+                .OrderByDescending(a => a.Timestamp)
+                .Take(10);
+        }
+        
+        /// <summary>
+        /// Gera um contexto enriquecido utilizando LLM
+        /// </summary>
+        private async Task<string> GenerateEnrichedContextAsync(
+            string originalContext,
+            IEnumerable<Models.ActivityJournalEvent> activities,
+            IEnumerable<Models.InterpretedRelationEvent> relations,
+            CancellationToken cancellationToken)
+        {
+            // Preparar contexto para o LLM
+            var contextBuilder = new StringBuilder();
+            
+            // Adicionar contexto original
+            contextBuilder.AppendLine("## Original Context");
+            contextBuilder.AppendLine(originalContext);
+            contextBuilder.AppendLine();
+            
+            // Adicionar atividades relevantes
+            contextBuilder.AppendLine("## Relevant Activities");
+            foreach (var activity in activities.Take(_options.MaxEventsPerActivity))
+            {
+                contextBuilder.AppendLine($"- Type: {activity.ActivityType}");
+                contextBuilder.AppendLine($"  Timestamp: {activity.Timestamp}");
+                contextBuilder.AppendLine($"  Content: {activity.Content[..Math.Min(activity.Content.Length, 100)]}...");
+                contextBuilder.AppendLine();
+            }
+            
+            // Adicionar relações relevantes
+            if (relations.Any())
+            {
+                contextBuilder.AppendLine("## Relevant Relations");
+                foreach (var relation in relations)
+                {
+                    contextBuilder.AppendLine($"- Type: {relation.RelationType}");
+                    contextBuilder.AppendLine($"  Strength: {relation.RelationStrength}");
+                    contextBuilder.AppendLine($"  Description: {relation.Description}");
+                    contextBuilder.AppendLine();
+                }
+            }
+            
+            // Criar prompt para o LLM
+            string prompt = $@"
+You are an AI assistant that helps enrich programming context with relevant information.
+Analyze the following context and relevant activities/relations, and provide an enriched
+summary that would be most helpful for a programmer working on this task.
+
+Enrichment level: {_options.EnrichmentLevel} (1-5, where 5 is most detailed)
+
+{contextBuilder}
+
+Please provide:
+1. A concise summary of the key points
+2. Any relevant technical details from the activities
+3. Connections between related concepts
+4. Suggestions based on the context and activities
+
+Format the response in markdown.
+";
+
+            // Chamar LLM para gerar o contexto enriquecido
+            var chatOptions = new ChatCompletionsOptions
+            {
+                Messages =
+                {
+                    new ChatMessage(ChatRole.System, "You are an AI programming assistant that specializes in providing enriched context for software development tasks."),
+                    new ChatMessage(ChatRole.User, prompt)
+                },
+                MaxTokens = 1000
+            };
+            
+            var response = await _openAIClient.GetChatCompletionsAsync(chatOptions, cancellationToken);
+            
+            var enrichedContext = response.Value.Choices[0].Message.Content;
+            
+            _logger.LogInformation("Contexto enriquecido gerado com {Tokens} tokens", response.Value.Usage.TotalTokens);
+            
+            return enrichedContext;
+        }
+    }
+}

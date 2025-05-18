@@ -1,0 +1,100 @@
+using EemCore.Agents;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EemServer.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize(Policy = "EemApiScope")]
+    public class CorrelationController : ControllerBase
+    {
+        private readonly CorrelationAgent _correlationAgent;
+        private readonly ILogger<CorrelationController> _logger;
+
+        public CorrelationController(
+            CorrelationAgent correlationAgent,
+            ILogger<CorrelationController> logger)
+        {
+            _correlationAgent = correlationAgent;
+            _logger = logger;
+        }
+
+        [HttpPost("detect")]
+        public async Task<IActionResult> DetectCorrelations(DetectCorrelationsRequest request)
+        {
+            try
+            {
+                string result = await _correlationAgent.DetectCorrelationsAsync(
+                    request.SessionId,
+                    request.Threshold,
+                    request.MaxEvents,
+                    request.CorrelationTypes);
+                    
+                return Ok(new { success = true, message = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro na detecção de correlações");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("show")]
+        public async Task<IActionResult> ShowCorrelations(
+            [FromQuery] string activityIds,
+            [FromQuery] string? correlationTypes = null)
+        {
+            try
+            {
+                string correlations = await _correlationAgent.ShowCorrelationsAsync(
+                    activityIds, correlationTypes);
+                    
+                return Ok(new { success = true, correlations });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao exibir correlações");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("create")]
+        public async Task<IActionResult> CreateManualCorrelation(CreateCorrelationRequest request)
+        {
+            try
+            {
+                string result = await _correlationAgent.CreateManualCorrelationAsync(
+                    request.ActivityIds,
+                    request.CorrelationType,
+                    request.Description,
+                    request.Strength,
+                    request.Tags);
+                    
+                return Ok(new { success = true, message = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao criar correlação manual");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+    }
+
+    public class DetectCorrelationsRequest
+    {
+        public string SessionId { get; set; } = string.Empty;
+        public double Threshold { get; set; } = 0.5;
+        public int MaxEvents { get; set; } = 50;
+        public string CorrelationTypes { get; set; } = "all";
+    }
+
+    public class CreateCorrelationRequest
+    {
+        public string ActivityIds { get; set; } = string.Empty;
+        public string CorrelationType { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public double Strength { get; set; } = 1.0;
+        public string? Tags { get; set; }
+    }
+}

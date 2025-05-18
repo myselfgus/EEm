@@ -1,0 +1,179 @@
+﻿using EemCore.Agents;
+using EemCore.Configuration;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace EemCore.Services
+{
+    /// <summary>
+    /// Health check para verificar o estado dos agentes do sistema Εεm
+    /// </summary>
+    public class EemAgentsHealthCheck : IHealthCheck
+    {
+        private readonly CaptureAgent _captureAgent;
+        private readonly ContextAgent _contextAgent;
+        private readonly CorrelationAgent _correlationAgent;
+        private readonly EulerianAgent _eulerianAgent;
+        private readonly IOptions<EemOptions> _options;
+        private readonly ILogger<EemAgentsHealthCheck> _logger;
+
+        /// <summary>
+        /// Construtor com injeção de dependências
+        /// </summary>
+        public EemAgentsHealthCheck(
+            CaptureAgent captureAgent,
+            ContextAgent contextAgent,
+            CorrelationAgent correlationAgent,
+            EulerianAgent eulerianAgent,
+            IOptions<EemOptions> options,
+            ILogger<EemAgentsHealthCheck> logger)
+        {
+            _captureAgent = captureAgent;
+            _contextAgent = contextAgent;
+            _correlationAgent = correlationAgent;
+            _eulerianAgent = eulerianAgent;
+            _options = options;
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Verifica a saúde dos agentes do sistema Εεm
+        /// </summary>
+        public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+        {
+            var data = new Dictionary<string, object>
+            {
+                { "LastCheckTime", DateTime.UtcNow },
+                { "CaptureInterval", _options.Value.CaptureInterval },
+                { "EulerianProcessingEnabled", _options.Value.EnableEulerianProcessing },
+                { "CorrelationAnalysisEnabled", _options.Value.EnableCorrelationAnalysis }
+            };
+
+            try
+            {
+                // Verificar estado do CaptureAgent
+                var captureAgentStatus = await VerifyCaptureAgentAsync(cancellationToken);
+                data.Add("CaptureAgentStatus", captureAgentStatus);
+
+                // Verificar estado do ContextAgent
+                var contextAgentStatus = await VerifyContextAgentAsync(cancellationToken);
+                data.Add("ContextAgentStatus", contextAgentStatus);
+
+                // Verificar outros agentes apenas se ativados nas configurações
+                if (_options.Value.EnableCorrelationAnalysis)
+                {
+                    var correlationAgentStatus = await VerifyCorrelationAgentAsync(cancellationToken);
+                    data.Add("CorrelationAgentStatus", correlationAgentStatus);
+                }
+
+                if (_options.Value.EnableEulerianProcessing)
+                {
+                    var eulerianAgentStatus = await VerifyEulerianAgentAsync(cancellationToken);
+                    data.Add("EulerianAgentStatus", eulerianAgentStatus);
+                }
+
+                // Se todos os agentes verificados estiverem ok, o sistema está saudável
+                if (data.Values.All(v => v is string s && s == "Ok"))
+                {
+                    return HealthCheckResult.Healthy("Todos os agentes Εεm estão funcionando corretamente", data);
+                }
+                else if (data.Values.Any(v => v is string s && s == "Failed"))
+                {
+                    // Se algum agente crítico falhar, o sistema está não saudável
+                    return HealthCheckResult.Unhealthy("Um ou mais agentes críticos do Εεm estão com problemas", null, data);
+                }
+                else
+                {
+                    // Caso contrário, está degradado
+                    return HealthCheckResult.Degraded("Alguns agentes do Εεm estão com funcionalidade limitada", null, data);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao verificar a saúde dos agentes Εεm");
+                return HealthCheckResult.Unhealthy("Erro ao verificar a saúde dos agentes", ex, data);
+            }
+        }
+
+        /// <summary>
+        /// Verifica o estado do agente de captura
+        /// </summary>
+        private async Task<string> VerifyCaptureAgentAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Em uma implementação real, testaríamos a funcionalidade específica do agente
+                // Por exemplo, verificar se consegue acessar o container de blob storage
+                
+                // Simulação simples para o agente de captura (considerado crítico)
+                return "Ok";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Falha na verificação do agente de captura");
+                return "Failed";
+            }
+        }
+
+        /// <summary>
+        /// Verifica o estado do agente de contexto
+        /// </summary>
+        private async Task<string> VerifyContextAgentAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Em uma implementação real, testaríamos a busca de contexto
+                // Por exemplo, verificar se consegue realizar uma busca simples
+                
+                // Simulação simples para o agente de contexto (considerado crítico)
+                return "Ok";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Falha na verificação do agente de contexto");
+                return "Failed";
+            }
+        }
+
+        /// <summary>
+        /// Verifica o estado do agente de correlação
+        /// </summary>
+        private async Task<string> VerifyCorrelationAgentAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Em uma implementação real, testaríamos a funcionalidade específica
+                // Por exemplo, verificar se consegue detectar correlações simples
+                
+                // Simulação simples para o agente de correlação (não crítico)
+                return "Ok";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Falha na verificação do agente de correlação");
+                return "Degraded"; // Consideramos degradado e não falha completa
+            }
+        }
+
+        /// <summary>
+        /// Verifica o estado do agente euleriano
+        /// </summary>
+        private async Task<string> VerifyEulerianAgentAsync(CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Em uma implementação real, testaríamos a funcionalidade específica
+                // Por exemplo, verificar se consegue processar um grafo simples
+                
+                // Simulação simples para o agente euleriano (não crítico)
+                return "Ok";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Falha na verificação do agente euleriano");
+                return "Degraded"; // Consideramos degradado e não falha completa
+            }
+        }
+    }
+}

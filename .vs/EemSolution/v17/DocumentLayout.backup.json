@@ -1,0 +1,615 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\G\\EEm\\EemSolution\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\.github\\workflows\\eem-cicd.yml||{8B382828-6202-11D1-8870-0000F87579D2}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:.github\\workflows\\eem-cicd.yml||{8B382828-6202-11D1-8870-0000F87579D2}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\Processing\\GenAIScriptProcessorTests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore.Tests\\Processing\\GenAIScriptProcessorTests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\Repositories\\ScriptRepositoryTests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore.Tests\\Repositories\\ScriptRepositoryTests.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\EemCore.Tests.csproj||{8B382828-6202-11D1-8870-0000F87579D2}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore.Tests\\EemCore.Tests.csproj||{8B382828-6202-11D1-8870-0000F87579D2}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\ScriptController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemServer\\Controllers\\ScriptController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\ContextController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemServer\\Controllers\\ContextController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\CaptureController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemServer\\Controllers\\CaptureController.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Processing\\EemHealthCheckHelper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Processing\\EemHealthCheckHelper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\ActivityJournalEvent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Models\\ActivityJournalEvent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\InterpretedRelationEvent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Models\\InterpretedRelationEvent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\CaptureAgent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Agents\\CaptureAgent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\ContextAgent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Agents\\ContextAgent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\CorrelationAgent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Agents\\CorrelationAgent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\EulerianAgent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Agents\\EulerianAgent.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemServer\\Program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Processing\\GenAIScriptProcessor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Processing\\GenAIScriptProcessor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\ContextEnrichmentService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Services\\ContextEnrichmentService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\IdeIntegrationService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Services\\IdeIntegrationService.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\ScriptRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Data\\Repositories\\ScriptRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\EulerianFlowRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Data\\Repositories\\EulerianFlowRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\RelationRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Data\\Repositories\\RelationRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\azure-provision.sh||{3B902123-F8A7-4915-9F01-361F908088D0}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:azure-provision.sh||{3B902123-F8A7-4915-9F01-361F908088D0}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\Dockerfile||{8B382828-6202-11D1-8870-0000F87579D2}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:Dockerfile||{8B382828-6202-11D1-8870-0000F87579D2}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\EemAgentsHealthCheck.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Services\\EemAgentsHealthCheck.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\EemDataInitializer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Data\\EemDataInitializer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\ScriptInfo.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Models\\ScriptInfo.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\ActivityRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Data\\Repositories\\ActivityRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\BaseBlobRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Data\\Repositories\\BaseBlobRepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\IRepositories.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Data\\Repositories\\IRepositories.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Infrastructure\\ServiceExtensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Infrastructure\\ServiceExtensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\Resilient\\ResilientServices.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Services\\Resilient\\ResilientServices.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemServer\\EemServer.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemServer\\EemServer.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\EemCore.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\EemCore.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Configuration\\EemOptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Configuration\\EemOptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\EulerianFlow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:EemCore\\Models\\EulerianFlow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 1,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 34,
+              "Title": "EulerianFlow.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\EulerianFlow.cs",
+              "RelativeDocumentMoniker": "EemCore\\Models\\EulerianFlow.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\EulerianFlow.cs",
+              "RelativeToolTip": "EemCore\\Models\\EulerianFlow.cs",
+              "ViewState": "AgIAAGQAAAAAAAAAAMBdwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:54:40.788Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "eem-cicd.yml",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\.github\\workflows\\eem-cicd.yml",
+              "RelativeDocumentMoniker": ".github\\workflows\\eem-cicd.yml",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\.github\\workflows\\eem-cicd.yml",
+              "RelativeToolTip": ".github\\workflows\\eem-cicd.yml",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAFUAAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003775|",
+              "WhenOpened": "2025-05-18T19:14:57.612Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "GenAIScriptProcessorTests.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\Processing\\GenAIScriptProcessorTests.cs",
+              "RelativeDocumentMoniker": "EemCore.Tests\\Processing\\GenAIScriptProcessorTests.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\Processing\\GenAIScriptProcessorTests.cs",
+              "RelativeToolTip": "EemCore.Tests\\Processing\\GenAIScriptProcessorTests.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAGUBAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:14:34.168Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "ScriptRepositoryTests.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\Repositories\\ScriptRepositoryTests.cs",
+              "RelativeDocumentMoniker": "EemCore.Tests\\Repositories\\ScriptRepositoryTests.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\Repositories\\ScriptRepositoryTests.cs",
+              "RelativeToolTip": "EemCore.Tests\\Repositories\\ScriptRepositoryTests.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAFYBAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:13:43.473Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "EemCore.Tests.csproj",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\EemCore.Tests.csproj",
+              "RelativeDocumentMoniker": "EemCore.Tests\\EemCore.Tests.csproj",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore.Tests\\EemCore.Tests.csproj",
+              "RelativeToolTip": "EemCore.Tests\\EemCore.Tests.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB0AAAAKAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-05-18T19:12:48.206Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "ScriptController.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\ScriptController.cs",
+              "RelativeDocumentMoniker": "EemServer\\Controllers\\ScriptController.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\ScriptController.cs",
+              "RelativeToolTip": "EemServer\\Controllers\\ScriptController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAHcAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:08:04.652Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "ContextController.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\ContextController.cs",
+              "RelativeDocumentMoniker": "EemServer\\Controllers\\ContextController.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\ContextController.cs",
+              "RelativeToolTip": "EemServer\\Controllers\\ContextController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:07:23.041Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "CaptureController.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\CaptureController.cs",
+              "RelativeDocumentMoniker": "EemServer\\Controllers\\CaptureController.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Controllers\\CaptureController.cs",
+              "RelativeToolTip": "EemServer\\Controllers\\CaptureController.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:07:11.137Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "EemHealthCheckHelper.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Processing\\EemHealthCheckHelper.cs",
+              "RelativeDocumentMoniker": "EemCore\\Processing\\EemHealthCheckHelper.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Processing\\EemHealthCheckHelper.cs",
+              "RelativeToolTip": "EemCore\\Processing\\EemHealthCheckHelper.cs",
+              "ViewState": "AgIAACoAAAAAAAAAAAAAAEMAAAApAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:06:53.117Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "ActivityJournalEvent.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\ActivityJournalEvent.cs",
+              "RelativeDocumentMoniker": "EemCore\\Models\\ActivityJournalEvent.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\ActivityJournalEvent.cs",
+              "RelativeToolTip": "EemCore\\Models\\ActivityJournalEvent.cs",
+              "ViewState": "AgIAAFQAAAAAAAAAAAAAAGMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:06:29.699Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "InterpretedRelationEvent.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\InterpretedRelationEvent.cs",
+              "RelativeDocumentMoniker": "EemCore\\Models\\InterpretedRelationEvent.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\InterpretedRelationEvent.cs",
+              "RelativeToolTip": "EemCore\\Models\\InterpretedRelationEvent.cs",
+              "ViewState": "AgIAAEYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:06:11.405Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "CaptureAgent.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\CaptureAgent.cs",
+              "RelativeDocumentMoniker": "EemCore\\Agents\\CaptureAgent.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\CaptureAgent.cs",
+              "RelativeToolTip": "EemCore\\Agents\\CaptureAgent.cs",
+              "ViewState": "AgIAAMABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:05:19.882Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "ContextAgent.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\ContextAgent.cs",
+              "RelativeDocumentMoniker": "EemCore\\Agents\\ContextAgent.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\ContextAgent.cs",
+              "RelativeToolTip": "EemCore\\Agents\\ContextAgent.cs",
+              "ViewState": "AgIAAPQCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:03:38.757Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "CorrelationAgent.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\CorrelationAgent.cs",
+              "RelativeDocumentMoniker": "EemCore\\Agents\\CorrelationAgent.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\CorrelationAgent.cs",
+              "RelativeToolTip": "EemCore\\Agents\\CorrelationAgent.cs",
+              "ViewState": "AgIAAPADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T19:01:28.009Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "EulerianAgent.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\EulerianAgent.cs",
+              "RelativeDocumentMoniker": "EemCore\\Agents\\EulerianAgent.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Agents\\EulerianAgent.cs",
+              "RelativeToolTip": "EemCore\\Agents\\EulerianAgent.cs",
+              "ViewState": "AgIAAFYDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:59:05.413Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Program.cs",
+              "RelativeDocumentMoniker": "EemServer\\Program.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\Program.cs",
+              "RelativeToolTip": "EemServer\\Program.cs",
+              "ViewState": "AgIAAIwAAAAAAAAAAAAAAKUAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:57:44.154Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "GenAIScriptProcessor.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Processing\\GenAIScriptProcessor.cs",
+              "RelativeDocumentMoniker": "EemCore\\Processing\\GenAIScriptProcessor.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Processing\\GenAIScriptProcessor.cs",
+              "RelativeToolTip": "EemCore\\Processing\\GenAIScriptProcessor.cs",
+              "ViewState": "AgIAAPwCAAAAAAAAAAArwCUAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:55:54.284Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "ContextEnrichmentService.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\ContextEnrichmentService.cs",
+              "RelativeDocumentMoniker": "EemCore\\Services\\ContextEnrichmentService.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\ContextEnrichmentService.cs",
+              "RelativeToolTip": "EemCore\\Services\\ContextEnrichmentService.cs",
+              "ViewState": "AgIAAJkAAAAAAAAAAAAkwLcAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:55:11.061Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "IdeIntegrationService.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\IdeIntegrationService.cs",
+              "RelativeDocumentMoniker": "EemCore\\Services\\IdeIntegrationService.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\IdeIntegrationService.cs",
+              "RelativeToolTip": "EemCore\\Services\\IdeIntegrationService.cs",
+              "ViewState": "AgIAAEIBAAAAAAAAAAArwE0AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:54:23.533Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "ScriptRepository.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\ScriptRepository.cs",
+              "RelativeDocumentMoniker": "EemCore\\Data\\Repositories\\ScriptRepository.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\ScriptRepository.cs",
+              "RelativeToolTip": "EemCore\\Data\\Repositories\\ScriptRepository.cs",
+              "ViewState": "AgIAANwAAAAAAAAAAAArwPMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:53:54.728Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 19,
+              "Title": "EulerianFlowRepository.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\EulerianFlowRepository.cs",
+              "RelativeDocumentMoniker": "EemCore\\Data\\Repositories\\EulerianFlowRepository.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\EulerianFlowRepository.cs",
+              "RelativeToolTip": "EemCore\\Data\\Repositories\\EulerianFlowRepository.cs",
+              "ViewState": "AgIAALoAAAAAAAAAAAArwNgAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:53:17.618Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
+              "Title": "RelationRepository.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\RelationRepository.cs",
+              "RelativeDocumentMoniker": "EemCore\\Data\\Repositories\\RelationRepository.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\RelationRepository.cs",
+              "RelativeToolTip": "EemCore\\Data\\Repositories\\RelationRepository.cs",
+              "ViewState": "AgIAAKkAAAAAAAAAAAArwAUAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:52:45.931Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "azure-provision.sh",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\azure-provision.sh",
+              "RelativeDocumentMoniker": "azure-provision.sh",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\azure-provision.sh",
+              "RelativeToolTip": "azure-provision.sh",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAEwAAAASAAAAAAAAAA==",
+              "Icon": "00000000-0000-0000-0000-000000000000.000000|",
+              "WhenOpened": "2025-05-18T18:52:14.1Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 22,
+              "Title": "Dockerfile",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\Dockerfile",
+              "RelativeDocumentMoniker": "Dockerfile",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\Dockerfile",
+              "RelativeToolTip": "Dockerfile",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAmAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2025-05-18T18:51:59.765Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 23,
+              "Title": "EemAgentsHealthCheck.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\EemAgentsHealthCheck.cs",
+              "RelativeDocumentMoniker": "EemCore\\Services\\EemAgentsHealthCheck.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\EemAgentsHealthCheck.cs",
+              "RelativeToolTip": "EemCore\\Services\\EemAgentsHealthCheck.cs",
+              "ViewState": "AgIAAKkAAAAAAAAAAAArwMYAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:51:42.295Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 24,
+              "Title": "EemDataInitializer.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\EemDataInitializer.cs",
+              "RelativeDocumentMoniker": "EemCore\\Data\\EemDataInitializer.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\EemDataInitializer.cs",
+              "RelativeToolTip": "EemCore\\Data\\EemDataInitializer.cs",
+              "ViewState": "AgIAAFQAAAAAAAAAAAArwBAAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:47:47.803Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 25,
+              "Title": "ScriptInfo.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\ScriptInfo.cs",
+              "RelativeDocumentMoniker": "EemCore\\Models\\ScriptInfo.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Models\\ScriptInfo.cs",
+              "RelativeToolTip": "EemCore\\Models\\ScriptInfo.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACoAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:47:29.8Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 26,
+              "Title": "ActivityRepository.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\ActivityRepository.cs",
+              "RelativeDocumentMoniker": "EemCore\\Data\\Repositories\\ActivityRepository.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\ActivityRepository.cs",
+              "RelativeToolTip": "EemCore\\Data\\Repositories\\ActivityRepository.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAOsAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:47:21.831Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 27,
+              "Title": "BaseBlobRepository.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\BaseBlobRepository.cs",
+              "RelativeDocumentMoniker": "EemCore\\Data\\Repositories\\BaseBlobRepository.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\BaseBlobRepository.cs",
+              "RelativeToolTip": "EemCore\\Data\\Repositories\\BaseBlobRepository.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAkwB4AAAB7AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:46:48.988Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 28,
+              "Title": "IRepositories.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\IRepositories.cs",
+              "RelativeDocumentMoniker": "EemCore\\Data\\Repositories\\IRepositories.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Data\\Repositories\\IRepositories.cs",
+              "RelativeToolTip": "EemCore\\Data\\Repositories\\IRepositories.cs",
+              "ViewState": "AgIAAHYAAAAAAAAAAAArwIsAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:46:39.428Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 29,
+              "Title": "ServiceExtensions.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Infrastructure\\ServiceExtensions.cs",
+              "RelativeDocumentMoniker": "EemCore\\Infrastructure\\ServiceExtensions.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Infrastructure\\ServiceExtensions.cs",
+              "RelativeToolTip": "EemCore\\Infrastructure\\ServiceExtensions.cs",
+              "ViewState": "AgIAAKkAAAAAAAAAAAArwMUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:46:18.721Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 30,
+              "Title": "ResilientServices.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\Resilient\\ResilientServices.cs",
+              "RelativeDocumentMoniker": "EemCore\\Services\\Resilient\\ResilientServices.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Services\\Resilient\\ResilientServices.cs",
+              "RelativeToolTip": "EemCore\\Services\\Resilient\\ResilientServices.cs",
+              "ViewState": "AgIAAHYAAAAAAAAAAAArwI0AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:45:50.023Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 33,
+              "Title": "EemOptions.cs",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Configuration\\EemOptions.cs",
+              "RelativeDocumentMoniker": "EemCore\\Configuration\\EemOptions.cs",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\Configuration\\EemOptions.cs",
+              "RelativeToolTip": "EemCore\\Configuration\\EemOptions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAALUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-05-18T18:45:30.27Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 31,
+              "Title": "EemServer.csproj",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\EemServer.csproj",
+              "RelativeDocumentMoniker": "EemServer\\EemServer.csproj",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemServer\\EemServer.csproj",
+              "RelativeToolTip": "EemServer\\EemServer.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-05-18T18:45:00.042Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 32,
+              "Title": "EemCore.csproj",
+              "DocumentMoniker": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\EemCore.csproj",
+              "RelativeDocumentMoniker": "EemCore\\EemCore.csproj",
+              "ToolTip": "C:\\Users\\G\\EEm\\EemSolution\\EemCore\\EemCore.csproj",
+              "RelativeToolTip": "EemCore\\EemCore.csproj",
+              "ViewState": "AgIAABEAAAAAAAAAAAD4vwAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-05-18T18:44:39.955Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,360 @@
+﻿using Azure.AI.OpenAI;
+using EemCore.Configuration;
+using EemCore.Data.Repositories;
+using EemCore.Models;
+using EemCore.Services.Resilient;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using System.Text;
+
+namespace EemCore.Services
+{
+    /// <summary>
+    /// Serviço para enriquecimento de contexto do Εεm
+    /// </summary>
+    public class ContextEnrichmentService
+    {
+        private readonly IActivityRepository _activityRepository;
+        private readonly IRelationRepository _relationRepository;
+        private readonly IEulerianFlowRepository _flowRepository;
+        private readonly ResilientOpenAIClient _openAIClient;
+        private readonly IOptions<AzureOptions> _azureOptions;
+        private readonly IOptions<EemOptions> _options;
+        private readonly ILogger<ContextEnrichmentService> _logger;
+        
+        public ContextEnrichmentService(
+            IActivityRepository activityRepository,
+            IRelationRepository relationRepository,
+            IEulerianFlowRepository flowRepository,
+            ResilientOpenAIClient openAIClient,
+            IOptions<AzureOptions> azureOptions,
+            IOptions<EemOptions> options,
+            ILogger<ContextEnrichmentService> logger)
+        {
+            _activityRepository = activityRepository;
+            _relationRepository = relationRepository;
+            _flowRepository = flowRepository;
+            _openAIClient = openAIClient;
+            _azureOptions = azureOptions;
+            _options = options;
+            _logger = logger;
+        }
+        
+        /// <summary>
+        /// Enriquece o contexto para uma consulta específica
+        /// </summary>
+        public async Task<string> EnrichContextAsync(
+            string query, 
+            string[] relevantActivityIds, 
+            string[] relevantFlowIds,
+            CancellationToken cancellationToken = default)
+        {
+            // Os níveis de enriquecimento definem a profundidade e complexidade
+            // do processamento de contexto
+            int enrichmentLevel = _options.Value.EnrichmentLevel;
+            
+            // Nível 1: Apenas concatenar informações
+            if (enrichmentLevel == 1)
+            {
+                return await SimpleConcatenationEnrichment(
+                    query, 
+                    relevantActivityIds, 
+                    relevantFlowIds,
+                    cancellationToken);
+            }
+            
+            // Nível 2-3: Usar IA para condensar e organizar informações
+            if (enrichmentLevel >= 2 && enrichmentLevel <= 3)
+            {
+                return await AiBasedEnrichment(
+                    query, 
+                    relevantActivityIds, 
+                    relevantFlowIds,
+                    false, // Sem análise avançada
+                    cancellationToken);
+            }
+            
+            // Nível 4-5: Análise e enriquecimento avançados com IA
+            if (enrichmentLevel >= 4)
+            {
+                return await AiBasedEnrichment(
+                    query, 
+                    relevantActivityIds, 
+                    relevantFlowIds,
+                    true, // Com análise avançada
+                    cancellationToken);
+            }
+            
+            // Fallback para concatenação simples
+            return await SimpleConcatenationEnrichment(
+                query, 
+                relevantActivityIds, 
+                relevantFlowIds,
+                cancellationToken);
+        }
+        
+        /// <summary>
+        /// Enriquecimento simples por concatenação
+        /// </summary>
+        private async Task<string> SimpleConcatenationEnrichment(
+            string query, 
+            string[] relevantActivityIds, 
+            string[] relevantFlowIds,
+            CancellationToken cancellationToken)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("## Contexto Relevante");
+            sb.AppendLine($"Consulta: {query}");
+            sb.AppendLine();
+            
+            // Obter e adicionar atividades
+            if (relevantActivityIds.Length > 0)
+            {
+                sb.AppendLine("### Atividades Relevantes");
+                
+                foreach (var activityId in relevantActivityIds)
+                {
+                    try
+                    {
+                        // Para uma implementação real, seria necessário um método para obter 
+                        // uma atividade pelo ID
+                        var activities = await _activityRepository.SearchActivityEventsAsync(
+                            activityId, 1, cancellationToken);
+                        
+                        var activity = activities.FirstOrDefault();
+                        if (activity != null)
+                        {
+                            sb.AppendLine($"- **{activity.ActivityType}** ({activity.Source})");
+                            sb.AppendLine($"  {activity.Content.Replace("\n", "\n  ")}");
+                            sb.AppendLine();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Erro ao recuperar atividade {Id}", activityId);
+                    }
+                }
+            }
+            
+            // Obter e adicionar fluxos eulerianos
+            if (relevantFlowIds.Length > 0)
+            {
+                sb.AppendLine("### Fluxos Eulerianos Relevantes");
+                
+                foreach (var flowId in relevantFlowIds)
+                {
+                    try
+                    {
+                        var flow = await _flowRepository.GetFlowByIdAsync(flowId, cancellationToken);
+                        
+                        if (flow != null)
+                        {
+                            sb.AppendLine($"- **{flow.Name}**");
+                            sb.AppendLine($"  {flow.Summary}");
+                            sb.AppendLine();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Erro ao recuperar fluxo euleriano {Id}", flowId);
+                    }
+                }
+            }
+            
+            return sb.ToString();
+        }
+        
+        /// <summary>
+        /// Enriquecimento avançado baseado em IA
+        /// </summary>
+        private async Task<string> AiBasedEnrichment(
+            string query, 
+            string[] relevantActivityIds, 
+            string[] relevantFlowIds,
+            bool advancedAnalysis,
+            CancellationToken cancellationToken)
+        {
+            // Coletar dados das atividades e fluxos
+            var contextData = await CollectContextData(
+                relevantActivityIds, 
+                relevantFlowIds, 
+                cancellationToken);
+            
+            // Criar um prompt para o modelo de IA
+            var prompt = CreateEnrichmentPrompt(query, contextData, advancedAnalysis);
+            
+            try
+            {
+                // Configurar opções para a chamada do modelo
+                var options = new ChatCompletionsOptions
+                {
+                    DeploymentName = _azureOptions.Value.OpenAIDeployment,
+                    MaxTokens = advancedAnalysis ? 2048 : 1024,
+                    Temperature = 0.3f
+                };
+                
+                // Adicionar mensagem do sistema
+                options.Messages.Add(new ChatRequestSystemMessage(
+                    "Você é um assistente especializado em sintetizar e enriquecer contexto para o sistema Εεm. " +
+                    "Seu objetivo é organizar e consolidar informações para facilitar a compreensão do usuário. " +
+                    "Apresente o contexto de forma clara, estruturada e concisa."
+                ));
+                
+                // Adicionar o prompt como mensagem do usuário
+                options.Messages.Add(new ChatRequestUserMessage(prompt));
+                
+                // Chamar o modelo
+                var response = await _openAIClient.GetChatCompletionsAsync(
+                    options, 
+                    cancellationToken);
+                
+                // Retornar o resultado processado
+                return response.Value.Choices[0].Message.Content;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao enriquecer contexto com IA");
+                
+                // Em caso de erro, voltar para o enriquecimento simples
+                return await SimpleConcatenationEnrichment(
+                    query, 
+                    relevantActivityIds, 
+                    relevantFlowIds, 
+                    cancellationToken);
+            }
+        }
+        
+        /// <summary>
+        /// Coleta dados de contexto
+        /// </summary>
+        private async Task<(List<ActivityJournalEvent> Activities, List<EulerianFlow> Flows)> CollectContextData(
+            string[] relevantActivityIds,
+            string[] relevantFlowIds,
+            CancellationToken cancellationToken)
+        {
+            var activities = new List<ActivityJournalEvent>();
+            var flows = new List<EulerianFlow>();
+            
+            // Coletar atividades
+            foreach (var activityId in relevantActivityIds)
+            {
+                try
+                {
+                    // Para uma implementação real, seria necessário um método para obter 
+                    // uma atividade pelo ID
+                    var foundActivities = await _activityRepository.SearchActivityEventsAsync(
+                        activityId, 1, cancellationToken);
+                    
+                    var activity = foundActivities.FirstOrDefault();
+                    if (activity != null)
+                    {
+                        activities.Add(activity);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Erro ao recuperar atividade {Id}", activityId);
+                }
+            }
+            
+            // Coletar fluxos
+            foreach (var flowId in relevantFlowIds)
+            {
+                try
+                {
+                    var flow = await _flowRepository.GetFlowByIdAsync(flowId, cancellationToken);
+                    
+                    if (flow != null)
+                    {
+                        flows.Add(flow);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Erro ao recuperar fluxo euleriano {Id}", flowId);
+                }
+            }
+            
+            return (activities, flows);
+        }
+        
+        /// <summary>
+        /// Cria o prompt para enriquecimento por IA
+        /// </summary>
+        private string CreateEnrichmentPrompt(
+            string query, 
+            (List<ActivityJournalEvent> Activities, List<EulerianFlow> Flows) contextData,
+            bool advancedAnalysis)
+        {
+            var sb = new StringBuilder();
+            
+            sb.AppendLine("# Contexto para Enriquecimento");
+            sb.AppendLine();
+            sb.AppendLine($"## Consulta do Usuário\n{query}");
+            sb.AppendLine();
+            
+            // Adicionar informações sobre as atividades
+            if (contextData.Activities.Count > 0)
+            {
+                sb.AppendLine("## Atividades Relevantes");
+                
+                foreach (var activity in contextData.Activities)
+                {
+                    sb.AppendLine($"### {activity.ActivityType} ({activity.Source})");
+                    sb.AppendLine($"Timestamp: {activity.Timestamp}");
+                    sb.AppendLine($"Conteúdo:\n{activity.Content}");
+                    sb.AppendLine();
+                }
+            }
+            
+            // Adicionar informações sobre os fluxos
+            if (contextData.Flows.Count > 0)
+            {
+                sb.AppendLine("## Fluxos Eulerianos Relevantes");
+                
+                foreach (var flow in contextData.Flows)
+                {
+                    sb.AppendLine($"### {flow.Name}");
+                    sb.AppendLine($"Descrição: {flow.Summary}");
+                    sb.AppendLine($"Categorias: {string.Join(", ", flow.Categories)}");
+                    sb.AppendLine($"Nós: {flow.Nodes.Count}, Arestas: {flow.Edges.Count}");
+                    sb.AppendLine();
+                    
+                    // Incluir informações detalhadas para análise avançada
+                    if (advancedAnalysis)
+                    {
+                        sb.AppendLine("#### Nós do Fluxo");
+                        foreach (var node in flow.Nodes.Take(10)) // Limitar para evitar contextos muito longos
+                        {
+                            sb.AppendLine($"- Nó {node.Id}: {node.Label} ({node.NodeType})");
+                        }
+                        sb.AppendLine();
+                    }
+                }
+            }
+            
+            // Instruções para o modelo
+            sb.AppendLine("## Tarefa");
+            
+            if (advancedAnalysis)
+            {
+                sb.AppendLine("Analise profundamente as informações acima e crie um contexto enriquecido que:");
+                sb.AppendLine("1. Identifique padrões nas atividades e fluxos");
+                sb.AppendLine("2. Destaque conexões não óbvias entre elementos");
+                sb.AppendLine("3. Infira insights relevantes para a consulta");
+                sb.AppendLine("4. Organize as informações em uma sequência lógica");
+                sb.AppendLine("5. Explique como esse contexto se relaciona com a consulta do usuário");
+            }
+            else
+            {
+                sb.AppendLine("Sintetize as informações acima em um contexto claro e conciso que:");
+                sb.AppendLine("1. Consolide as atividades e fluxos relevantes");
+                sb.AppendLine("2. Organize as informações em ordem de relevância para a consulta");
+                sb.AppendLine("3. Apresente o contexto de forma estruturada e fácil de compreender");
+                sb.AppendLine("4. Destaque os pontos mais importantes relacionados à consulta");
+            }
+            
+            return sb.ToString();
+        }
+    }
+}

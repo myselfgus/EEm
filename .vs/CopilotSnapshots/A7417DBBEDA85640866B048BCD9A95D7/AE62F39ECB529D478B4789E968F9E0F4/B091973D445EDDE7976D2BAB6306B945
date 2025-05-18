@@ -1,0 +1,97 @@
+﻿using EemCore.Agents;
+using EemCore.Configuration;
+using EemCore.Data.Repositories;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace EemCore.Services
+{
+    /// <summary>
+    /// Health check para verificar o estado dos agentes Εεm
+    /// </summary>
+    public class EemAgentsHealthCheck : IHealthCheck
+    {
+        private readonly IOptions<EemOptions> _options;
+        private readonly IServiceProvider _serviceProvider;
+        private readonly ILogger<EemAgentsHealthCheck> _logger;
+
+        public EemAgentsHealthCheck(
+            IOptions<EemOptions> options,
+            IServiceProvider serviceProvider,
+            ILogger<EemAgentsHealthCheck> logger)
+        {
+            _options = options;
+            _serviceProvider = serviceProvider;
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Executa a verificação de saúde dos agentes Εεm
+        /// </summary>
+        public async Task<HealthCheckResult> CheckHealthAsync(
+            HealthCheckContext context,
+            CancellationToken cancellationToken = default)
+        {
+            _logger.LogInformation("Executando health check dos agentes Εεm");
+
+            var healthData = new Dictionary<string, object>();
+            var hasErrors = false;
+
+            try
+            {
+                // Verificar acesso ao repositório de atividades
+                using (var scope = _serviceProvider.CreateScope())
+                {
+                    var activityRepo = scope.ServiceProvider.GetRequiredService<IActivityRepository>();
+
+                    // Verificar se consegue listar eventos recentes (últimos 10 minutos)
+                    var endTime = DateTime.UtcNow;
+                    var startTime = endTime.AddMinutes(-10);
+
+                    var recentEvents = await activityRepo.GetActivityEventsInTimeRangeAsync(
+                        startTime, endTime, 1, cancellationToken);
+
+                    healthData["ActivityRepository"] = "Operational";
+                    healthData["EventsAccessible"] = true;
+                }
+
+                // Verificar acesso ao repositório de scripts
+                using (var scope = _serviceProvider.CreateScope())
+                {
+                    var scriptRepo = scope.ServiceProvider.GetRequiredService<IScriptRepository>();
+
+                    // Verificar se consegue listar scripts
+                    var scripts = await scriptRepo.ListScriptsAsync(cancellationToken);
+
+                    healthData["ScriptRepository"] = "Operational";
+                    healthData["ScriptsCount"] = scripts.Count();
+                }
+
+                // Verificar configuração dos agentes
+                healthData["CaptureInterval"] = _options.Value.CaptureInterval;
+                healthData["EulerianProcessingEnabled"] = _options.Value.EnableEulerianProcessing;
+                healthData["CorrelationAnalysisEnabled"] = _options.Value.EnableCorrelationAnalysis;
+                healthData["EnrichmentLevel"] = _options.Value.EnrichmentLevel;
+
+                // Verificar agentes disponíveis
+                using (var scope = _serviceProvider.CreateScope())
+                {
+                    var captureAgent = scope.ServiceProvider.GetRequiredService<CaptureAgent>();
+                    var contextAgent = scope.ServiceProvider.GetRequiredService<ContextAgent>();
+                    var eulerianAgent = scope.ServiceProvider.GetRequiredService<EulerianAgent>();
+                    var correlationAgent = scope.ServiceProvider.GetRequiredService<CorrelationAgent>();
+
+                    healthData["AgentsAvailable"] = new[]
+                    {
+                        "CaptureAgent",
+                        "ContextAgent",
+                        "EulerianAgent",
+                        "CorrelationAgent"
+                    };
+                }
+
+                if (hasErrors)
+                {
+                    return HealthCheckResult.Degraded(
+                        "Alguns componentes dos agentes Εεm estão

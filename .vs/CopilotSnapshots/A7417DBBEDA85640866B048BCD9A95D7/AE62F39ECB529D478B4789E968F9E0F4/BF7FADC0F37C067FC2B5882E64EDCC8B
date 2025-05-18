@@ -1,0 +1,132 @@
+﻿using System.Text.Json.Serialization;
+
+namespace EemCore.Models
+{
+    /// <summary>
+    /// Representa um fluxo euleriano (.e)
+    /// Armazena fluxos estruturados de atividades gerados pelo processamento euleriano
+    /// </summary>
+    public class EulerianFlow
+    {
+        /// <summary>
+        /// Identificador único do fluxo
+        /// </summary>
+        [JsonPropertyName("flowId")]
+        public string FlowId { get; set; } = Guid.NewGuid().ToString();
+
+        /// <summary>
+        /// Intervalo de tempo que o fluxo abrange
+        /// </summary>
+        [JsonPropertyName("timeRange")]
+        public (DateTime Start, DateTime End) TimeRange { get; set; }
+
+        /// <summary>
+        /// IDs dos eventos de relação interpretada associados a este fluxo
+        /// </summary>
+        [JsonPropertyName("relatedEventIds")]
+        public string[] RelatedEventIds { get; set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Tipo do fluxo identificado
+        /// (ex: 'session_activity', 'development_sequence', 'research_pattern')
+        /// </summary>
+        [JsonPropertyName("flowType")]
+        public string FlowType { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Estrutura do fluxo em formato JSON
+        /// Representa a sequência e conexões entre eventos
+        /// </summary>
+        [JsonPropertyName("structure")]
+        public string Structure { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Sessão associada ao fluxo (pode envolver múltiplas sessões)
+        /// </summary>
+        [JsonPropertyName("sessionId")]
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Representa se o fluxo é euleriano completo (cada aresta visitada exatamente uma vez)
+        /// </summary>
+        [JsonPropertyName("isCompleteEulerian")]
+        public bool IsCompleteEulerian { get; set; } = false;
+
+        /// <summary>
+        /// Tags semânticas associadas a este fluxo
+        /// </summary>
+        [JsonPropertyName("tags")]
+        public string[] Tags { get; set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Metadados adicionais específicos para este fluxo
+        /// </summary>
+        [JsonPropertyName("metadata")]
+        public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
+
+        /// <summary>
+        /// Versão do algoritmo euleriano usado
+        /// </summary>
+        [JsonPropertyName("algorithmVersion")]
+        public string AlgorithmVersion { get; set; } = "1.0";
+
+        /// <summary>
+        /// Nome específico do arquivo .e para armazenamento
+        /// </summary>
+        [JsonIgnore]
+        public string FileName => $"{SessionId}/{TimeRange.Start:yyyyMMdd}_{FlowId}.e";
+
+        /// <summary>
+        /// Adiciona um ID de evento relacionado ao fluxo
+        /// </summary>
+        public void AddRelatedEventId(string eventId)
+        {
+            if (string.IsNullOrEmpty(eventId))
+                throw new ArgumentException("ID de evento não pode ser vazio");
+
+            // Garantir que não adicionamos duplicados
+            if (!RelatedEventIds.Contains(eventId))
+            {
+                var newList = RelatedEventIds.ToList();
+                newList.Add(eventId);
+                RelatedEventIds = newList.ToArray();
+            }
+        }
+
+        /// <summary>
+        /// Adiciona uma tag semântica ao fluxo
+        /// </summary>
+        public void AddTag(string tag)
+        {
+            if (string.IsNullOrEmpty(tag))
+                return;
+
+            // Garantir que não adicionamos duplicados
+            if (!Tags.Contains(tag))
+            {
+                var newList = Tags.ToList();
+                newList.Add(tag);
+                Tags = newList.ToArray();
+            }
+        }
+
+        /// <summary>
+        /// Adiciona um metadado ao fluxo
+        /// </summary>
+        public void AddMetadata(string key, string value)
+        {
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentException("A chave do metadado não pode ser vazia");
+
+            Metadata[key] = value;
+        }
+
+        /// <summary>
+        /// Verifica se o fluxo contém um evento específico
+        /// </summary>
+        public bool ContainsRelatedEvent(string eventId)
+        {
+            return RelatedEventIds.Contains(eventId);
+        }
+    }
+}

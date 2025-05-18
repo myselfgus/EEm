@@ -1,0 +1,91 @@
+﻿using EemCore.Agents;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EemServer.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize(Policy = "EemApiScope")]
+    public class CaptureController : ControllerBase
+    {
+        private readonly CaptureAgent _captureAgent;
+        private readonly ILogger<CaptureController> _logger;
+
+        public CaptureController(
+            CaptureAgent captureAgent,
+            ILogger<CaptureController> logger)
+        {
+            _captureAgent = captureAgent;
+            _logger = logger;
+        }
+
+        [HttpPost("tick")]
+        public async Task<IActionResult> CaptureTick(TickRequest request)
+        {
+            try
+            {
+                string result = await _captureAgent.CaptureTickAsync(request.SessionId);
+                return Ok(new { success = true, message = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro durante captura de tick");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("activity")]
+        public async Task<IActionResult> CaptureActivity(ActivityRequest request)
+        {
+            try
+            {
+                string result = await _captureAgent.CaptureActivityAsync(
+                    request.Content,
+                    request.ActivityType,
+                    request.Source,
+                    request.SessionId);
+                    
+                return Ok(new { success = true, message = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro durante captura de atividade");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpDelete("purge")]
+        public async Task<IActionResult> PurgeOldActivities(PurgeRequest request)
+        {
+            try
+            {
+                string result = await _captureAgent.PurgeOldActivitiesAsync(request.RetentionDays);
+                return Ok(new { success = true, message = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro durante purga de atividades antigas");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+    }
+
+    public class TickRequest
+    {
+        public string? SessionId { get; set; }
+    }
+
+    public class ActivityRequest
+    {
+        public string Content { get; set; } = string.Empty;
+        public string ActivityType { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+        public string? SessionId { get; set; }
+    }
+
+    public class PurgeRequest
+    {
+        public int RetentionDays { get; set; } = 90;
+    }
+}

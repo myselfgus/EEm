@@ -1,0 +1,301 @@
+﻿using Microsoft.MCP;
+using Microsoft.Extensions.Logging;
+using System.ComponentModel;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using System.Text.Json;
+using Microsoft.SemanticKernel.Memory;
+using EemCore.Data.Repositories;
+using EemCore.Models;
+using EemCore.Services;
+using System.Text;
+
+namespace EemCore.Agents
+{
+    /// <summary>
+    /// Implementação do Agente de Captura para o sistema Εεm (Ευ-εnable-memory).
+    /// 
+    /// O Agente de Captura é responsável por:
+    /// 1. Executar automaticamente a cada 15 minutos para capturar atividades
+    /// 2. Registrar interações em IDEs (VS Code, Visual Studio)
+    /// 3. Capturar interações com assistentes de IA
+    /// 4. Armazenar os eventos capturados em arquivos .aje
+    /// </summary>
+    [McpToolType]
+    public class CaptureAgent
+    {
+        private readonly IActivityRepository _activityRepository;
+        private readonly IdeIntegrationService _ideIntegrationService;
+        private readonly ILogger<CaptureAgent> _logger;
+
+        public CaptureAgent(
+            IActivityRepository activityRepository,
+            IdeIntegrationService ideIntegrationService,
+            ILogger<CaptureAgent> logger)
+        {
+            _activityRepository = activityRepository;
+            _ideIntegrationService = ideIntegrationService;
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Método principal para captura de atividades do sistema.
+        /// Este método seria acionado por um Azure Functions Timer Trigger.
+        /// </summary>
+        [McpTool("CaptureTick")]
+        [Description("Executes a capture tick to record user activities")]
+        public async Task<string> CaptureTickAsync(
+            [Description("Optional session ID to use for this capture")]
+            string? sessionId = null)
+        {
+            try
+            {
+                _logger.LogInformation("Iniciando tick de captura de atividades, SessionId: {SessionId}", 
+                    sessionId ?? "novo");
+                
+                // Gerar ID de sessão se não fornecido
+                string activeSessionId = sessionId ?? Guid.NewGuid().ToString();
+                
+                // Capturar atividades de diferentes fontes
+                var ideActivities = await CaptureIdeActivitiesAsync(activeSessionId);
+                var aiActivities = await CaptureAiInteractionsAsync(activeSessionId);
+                var webActivities = await CaptureWebActivitiesAsync(activeSessionId);
+                
+                // Consolidar todas as atividades
+                var allActivities = new List<ActivityJournalEvent>();
+                allActivities.AddRange(ideActivities);
+                allActivities.AddRange(aiActivities);
+                allActivities.AddRange(webActivities);
+                
+                // Salvar atividades capturadas
+                int savedCount = 0;
+                foreach (var activity in allActivities)
+                {
+                    await _activityRepository.SaveActivityEventAsync(activity);
+                    savedCount++;
+                }
+                
+                var summary = new StringBuilder();
+                summary.AppendLine($"Captura concluída para sessão: {activeSessionId}");
+                summary.AppendLine($"- Atividades IDE: {ideActivities.Count}");
+                summary.AppendLine($"- Interações AI: {aiActivities.Count}");
+                summary.AppendLine($"- Atividades Web: {webActivities.Count}");
+                summary.AppendLine($"Total salvo: {savedCount} atividades");
+                
+                _logger.LogInformation("Captura concluída, {Count} atividades salvas", savedCount);
+                
+                return summary.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro durante captura de atividades");
+                return $"Erro durante captura de atividades: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Captura uma atividade específica do usuário (acionada manualmente)
+        /// </summary>
+        [McpTool("CaptureActivity")]
+        [Description("Explicitly captures a specific user activity")]
+        public async Task<string> CaptureActivityAsync(
+            [Description("Content of the activity to capture")]
+            string content,
+            
+            [Description("Type of activity, e.g., 'code_edit', 'search', 'ai_interaction'")]
+            string activityType,
+            
+            [Description("Source of the activity, e.g., 'Visual Studio', 'Browser', 'ChatGPT'")]
+            string source,
+            
+            [Description("Optional session ID to associate with the activity")]
+            string? sessionId = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    return "Erro: O conteúdo da atividade não pode estar vazio.";
+                }
+                
+                // Criar evento de atividade
+                var activityEvent = new ActivityJournalEvent
+                {
+                    ActivityType = activityType,
+                    Content = content,
+                    Source = source,
+                    SessionId = sessionId ?? Guid.NewGuid().ToString()
+                };
+                
+                // Salvar o evento
+                string eventId = await _activityRepository.SaveActivityEventAsync(activityEvent);
+                
+                _logger.LogInformation(
+                    "Atividade capturada manualmente: {Id}, Tipo: {Type}, Fonte: {Source}", 
+                    eventId, activityType, source);
+                
+                return $"Atividade capturada com sucesso. ID: {eventId}";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao capturar atividade manual");
+                return $"Erro ao capturar atividade: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Limpa eventos de atividade antigos
+        /// </summary>
+        [McpTool("PurgeOldActivities")]
+        [Description("Purges activity events older than the specified retention period")]
+        public async Task<string> PurgeOldActivitiesAsync(
+            [Description("Retention period in days")]
+            int retentionDays = 90)
+        {
+            try
+            {
+                if (retentionDays < 1)
+                {
+                    return "Erro: O período de retenção deve ser de pelo menos 1 dia.";
+                }
+                
+                var retentionPeriod = TimeSpan.FromDays(retentionDays);
+                
+                _logger.LogInformation("Iniciando limpeza de eventos antigos (retenção: {Days} dias)", 
+                    retentionDays);
+                
+                int purgedCount = await _activityRepository.PurgeOldEventsAsync(retentionPeriod);
+                
+                _logger.LogInformation("Limpeza concluída, {Count} eventos antigos excluídos", purgedCount);
+                
+                return $"Limpeza concluída. {purgedCount} eventos antigos foram excluídos.";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro durante limpeza de eventos antigos");
+                return $"Erro durante limpeza de eventos antigos: {ex.Message}";
+            }
+        }
+
+        // Métodos privados para captura de diferentes fontes
+
+        /// <summary>
+        /// Captura atividades da IDE (Visual Studio, VS Code)
+        /// </summary>
+        private async Task<List<ActivityJournalEvent>> CaptureIdeActivitiesAsync(string sessionId)
+        {
+            _logger.LogInformation("Capturando atividades de IDE para sessão {SessionId}", sessionId);
+            
+            // Em uma implementação real, integraríamos com:
+            // - VS Code Extension API
+            // - Visual Studio extensibility
+            // - JetBrains platform, etc.
+            
+            // Simulação para exemplo - em produção, estas seriam atividades reais capturadas
+            var activities = new List<ActivityJournalEvent>();
+            
+            // Simular algumas atividades de edição de código
+            activities.Add(_ideIntegrationService.CaptureCodeEditActivity(
+                "Program.cs",
+                "public class Program { /* código editado */ }",
+                "csharp",
+                sessionId,
+                new Dictionary<string, string> { ["project"] = "EemServer" }
+            ));
+            
+            // Simular navegação entre arquivos
+            activities.Add(_ideIntegrationService.CaptureNavigationActivity(
+                "EemCore/Data/Repositories/ActivityRepository.cs",
+                "file_open",
+                sessionId,
+                new Dictionary<string, string> { ["project"] = "EemCore" }
+            ));
+            
+            return activities;
+        }
+
+        /// <summary>
+        /// Captura interações com assistentes de IA
+        /// </summary>
+        private async Task<List<ActivityJournalEvent>> CaptureAiInteractionsAsync(string sessionId)
+        {
+            _logger.LogInformation("Capturando interações com IA para sessão {SessionId}", sessionId);
+            
+            // Em uma implementação real, integraríamos com:
+            // - Visual Studio IntelliCode
+            // - GitHub Copilot
+            // - ChatGPT, etc.
+            
+            // Simulação para exemplo
+            var activities = new List<ActivityJournalEvent>();
+            
+            // Simular interação com Copilot
+            activities.Add(_ideIntegrationService.CaptureAiInteractionActivity(
+                "Implementar método para salvar atividade",
+                "```csharp\npublic async Task<string> SaveActivityAsync(ActivityEvent activity)\n{\n    // implementação\n}\n```",
+                "GitHub Copilot",
+                sessionId
+            ));
+            
+            return activities;
+        }
+
+        /// <summary>
+        /// Captura navegação web e consultas relacionadas
+        /// </summary>
+        private async Task<List<ActivityJournalEvent>> CaptureWebActivitiesAsync(string sessionId)
+        {
+            _logger.LogInformation("Capturando atividades web para sessão {SessionId}", sessionId);
+            
+            // Em uma implementação real, integraríamos com:
+            // - Extensões de navegador
+            // - Histórico de navegação
+            // - API de busca, etc.
+            
+            // Simulação para exemplo
+            var activities = new List<ActivityJournalEvent>();
+            
+            // Simular uma busca na web
+            var searchActivity = new ActivityJournalEvent
+            {
+                ActivityType = "web_search",
+                Content = "Busca: 'Azure Cosmos DB repository pattern'",
+                Source = "Browser",
+                SessionId = sessionId,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["url"] = "https://learn.microsoft.com/search?q=cosmos+db+repository+pattern",
+                    ["browser"] = "Chrome"
+                }
+            };
+            
+            activities.Add(searchActivity);
+            
+            return activities;
+        }
+    }
+
+    /// <summary>
+    /// Representa um evento de atividade capturado
+    /// </summary>
+    public class ActivityEvent
+    {
+        public DateTime Timestamp { get; set; }
+        public string ActivityType { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Representa um evento de journal de atividade (.aje)
+    /// </summary>
+    public class ActivityJournalEvent
+    {
+        public DateTime Timestamp { get; set; }
+        public string ActivityType { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+        public string SessionId { get; set; } = string.Empty;
+        public Dictionary<string, object> Metadata { get; set; } = new Dictionary<string, object>();
+    }
+}

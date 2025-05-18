@@ -1,0 +1,92 @@
+using System.Text.Json.Serialization;
+
+namespace EemCore.Models
+{
+    /// <summary>
+    /// Representa uma relação interpretada entre eventos (.ire)
+    /// </summary>
+    public class InterpretedRelationEvent
+    {
+        /// <summary>
+        /// Identificador único da relação
+        /// </summary>
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+
+        /// <summary>
+        /// Timestamp de quando a relação foi criada
+        /// </summary>
+        [JsonPropertyName("timestamp")]
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Tipo de relação (causal, temporal, semântica, etc.)
+        /// </summary>
+        [JsonPropertyName("relationType")]
+        public string RelationType { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Lista de IDs de eventos relacionados
+        /// </summary>
+        [JsonPropertyName("relatedEventIds")]
+        public List<string> RelatedEventIds { get; set; } = new();
+
+        /// <summary>
+        /// Peso ou força da relação (0-1)
+        /// </summary>
+        [JsonPropertyName("relationStrength")]
+        public double RelationStrength { get; set; }
+
+        /// <summary>
+        /// Descrição da relação
+        /// </summary>
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Tags ou categorias para a relação
+        /// </summary>
+        [JsonPropertyName("tags")]
+        public List<string> Tags { get; set; } = new();
+
+        /// <summary>
+        /// Nome específico do arquivo .ire para armazenamento
+        /// </summary>
+        [JsonIgnore]
+        public string FileName => $"{SessionId}/{Timestamp:yyyyMMddHHmmss}_{Id}.ire";
+
+        /// <summary>
+        /// Adiciona um ID de evento relacionado à relação
+        /// </summary>
+        public void AddRelatedEventId(string eventId)
+        {
+            if (string.IsNullOrEmpty(eventId))
+                throw new ArgumentException("ID de evento não pode ser vazio");
+
+            // Garantir que não adicionamos duplicados
+            if (!RelatedEventIds.Contains(eventId))
+            {
+                RelatedEventIds.Add(eventId);
+            }
+        }
+
+        /// <summary>
+        /// Verifica se a relação contém um evento relacionado específico
+        /// </summary>
+        public bool ContainsRelatedEvent(string eventId)
+        {
+            return RelatedEventIds.Contains(eventId);
+        }
+
+        /// <summary>
+        /// Adiciona uma tag à relação
+        /// </summary>
+        public void AddTag(string tag)
+        {
+            if (string.IsNullOrEmpty(tag))
+                throw new ArgumentException("A tag não pode ser vazia");
+
+            Tags.Add(tag);
+        }
+    }
+}

@@ -1,0 +1,99 @@
+﻿using System.Text.Json.Serialization;
+
+namespace EemCore.Models
+{
+    /// <summary>
+    /// Representa um evento de journal de atividade (.aje)
+    /// Registra atividades capturadas automaticamente a cada 15 minutos ou manualmente
+    /// </summary>
+    public class ActivityJournalEvent
+    {
+        /// <summary>
+        /// Identificador único do evento
+        /// </summary>
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+
+        /// <summary>
+        /// Momento exato em que a atividade ocorreu
+        /// </summary>
+        [JsonPropertyName("timestamp")]
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// Tipo da atividade (ex: 'code_edit', 'search', 'ai_interaction')
+        /// </summary>
+        [JsonPropertyName("activityType")]
+        public string ActivityType { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Conteúdo principal da atividade
+        /// </summary>
+        [JsonPropertyName("content")]
+        public string Content { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Fonte da atividade (ex: 'Visual Studio', 'VS Code', 'Browser')
+        /// </summary>
+        [JsonPropertyName("source")]
+        public string Source { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Identificador da sessão associada ao evento
+        /// </summary>
+        [JsonPropertyName("sessionId")]
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Metadados adicionais específicos para cada tipo de atividade
+        /// </summary>
+        [JsonPropertyName("metadata")]
+        public Dictionary<string, string> Metadata { get; set; } = new Dictionary<string, string>();
+
+        /// <summary>
+        /// Caminho do arquivo associado (se aplicável)
+        /// </summary>
+        [JsonPropertyName("associatedFile")]
+        public string? AssociatedFile { get; set; }
+
+        /// <summary>
+        /// Hash de conteúdo para detecção de duplicação
+        /// </summary>
+        [JsonPropertyName("contentHash")]
+        public string? ContentHash { get; set; }
+
+        /// <summary>
+        /// Nome específico do arquivo .aje para armazenamento
+        /// </summary>
+        [JsonIgnore]
+        public string FileName => $"{SessionId}/{Timestamp:yyyyMMddHHmmss}_{Id}.aje";
+
+        /// <summary>
+        /// Cria um hash simplificado para detecção de duplicação de conteúdo
+        /// </summary>
+        public void GenerateContentHash()
+        {
+            if (string.IsNullOrEmpty(Content))
+            {
+                ContentHash = null;
+                return;
+            }
+
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            var bytes = System.Text.Encoding.UTF8.GetBytes(Content);
+            var hashBytes = sha.ComputeHash(bytes);
+            ContentHash = Convert.ToBase64String(hashBytes);
+        }
+
+        /// <summary>
+        /// Adiciona um metadado ao evento
+        /// </summary>
+        public void AddMetadata(string key, string value)
+        {
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentException("A chave do metadado não pode ser vazia");
+
+            Metadata[key] = value;
+        }
+    }
+}

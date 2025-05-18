@@ -1,0 +1,108 @@
+﻿using System.Text.Json.Serialization;
+
+namespace EemCore.Models
+{
+    /// <summary>
+    /// Representa um evento de relação interpretada (.ire)
+    /// Armazena correlações detectadas entre eventos .aje, estruturando relações semânticas
+    /// </summary>
+    public class InterpretedRelationEvent
+    {
+        /// <summary>
+        /// Identificador único da relação
+        /// </summary>
+        [JsonPropertyName("id")]
+        public string Id { get; set; } = Guid.NewGuid().ToString();
+
+        /// <summary>
+        /// Momento em que a relação foi detectada
+        /// </summary>
+        [JsonPropertyName("timestamp")]
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+        /// <summary>
+        /// IDs dos eventos fonte que geraram esta relação
+        /// </summary>
+        [JsonPropertyName("sourceEventIds")]
+        public string[] SourceEventIds { get; set; } = Array.Empty<string>();
+
+        /// <summary>
+        /// Tipo de relação identificada
+        /// (ex: 'semantic_similarity', 'sequence', 'dependency', 'context_expansion')
+        /// </summary>
+        [JsonPropertyName("relationType")]
+        public string RelationType { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Descrição interpretativa da relação detectada
+        /// </summary>
+        [JsonPropertyName("interpretation")]
+        public string Interpretation { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Nível de confiança da correlação identificada (0.0 a 1.0)
+        /// </summary>
+        [JsonPropertyName("confidence")]
+        public double Confidence { get; set; }
+
+        /// <summary>
+        /// Sessão associada à relação (pode envolver múltiplas sessões)
+        /// </summary>
+        [JsonPropertyName("sessionId")]
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Vetores de embedding para uso em buscas semânticas
+        /// </summary>
+        [JsonPropertyName("embedding")]
+        public float[]? Embedding { get; set; }
+
+        /// <summary>
+        /// Metadados adicionais específicos para esta relação
+        /// </summary>
+        [JsonExtensionData]
+        public Dictionary<string, object> Metadata { get; set; } = new();
+
+        /// <summary>
+        /// Nome específico do arquivo .ire para armazenamento
+        /// </summary>
+        [JsonIgnore]
+        public string FileName => $"{SessionId}/{Timestamp:yyyyMMddHHmmss}_{Id}.ire";
+
+        /// <summary>
+        /// Adiciona um ID de evento fonte à relação
+        /// </summary>
+        public void AddSourceEventId(string eventId)
+        {
+            if (string.IsNullOrEmpty(eventId))
+                throw new ArgumentException("ID de evento não pode ser vazio");
+
+            // Garantir que não adicionamos duplicados
+            if (!SourceEventIds.Contains(eventId))
+            {
+                var newList = SourceEventIds.ToList();
+                newList.Add(eventId);
+                SourceEventIds = newList.ToArray();
+            }
+        }
+
+        /// <summary>
+        /// Verifica se a relação contém um evento fonte específico
+        /// </summary>
+        public bool ContainsSourceEvent(string eventId)
+        {
+            return SourceEventIds.Contains(eventId);
+        }
+
+        /// <summary>
+        /// Adiciona um metadado à relação
+        /// </summary>
+        public void AddMetadata(string key, string value)
+        {
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentException("A chave do metadado não pode ser vazia");
+
+            Metadata[key] = value;
+        }
+    }
+}

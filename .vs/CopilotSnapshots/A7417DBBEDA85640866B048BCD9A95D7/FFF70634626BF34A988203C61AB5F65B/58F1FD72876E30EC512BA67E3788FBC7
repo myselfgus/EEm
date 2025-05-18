@@ -1,0 +1,85 @@
+﻿using EemCore.Agents;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EemServer.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize(Policy = "EemApiScope")]
+    public class ContextController : ControllerBase
+    {
+        private readonly ContextAgent _contextAgent;
+        private readonly ILogger<ContextController> _logger;
+
+        public ContextController(
+            ContextAgent contextAgent,
+            ILogger<ContextController> logger)
+        {
+            _contextAgent = contextAgent;
+            _logger = logger;
+        }
+
+        [HttpGet("relevant")]
+        public async Task<IActionResult> GetRelevantContext(
+            [FromQuery] string query,
+            [FromQuery] int maxResults = 5,
+            [FromQuery] string searchIn = "all",
+            [FromQuery] int timeWindowHours = 24)
+        {
+            try
+            {
+                string context = await _contextAgent.GetRelevantContextAsync(
+                    query, maxResults, searchIn, timeWindowHours);
+                    
+                return Ok(new { success = true, context });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao obter contexto relevante");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("observation")]
+        public async Task<IActionResult> StoreObservation(ObservationRequest request)
+        {
+            try
+            {
+                string result = await _contextAgent.StoreObservationAsync(
+                    request.Content,
+                    request.ObservationType,
+                    request.SessionId);
+                    
+                return Ok(new { success = true, message = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao armazenar observação");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("session/{sessionId}")]
+        public async Task<IActionResult> GetSessionInfo(string sessionId)
+        {
+            try
+            {
+                string sessionInfo = await _contextAgent.GetSessionInfoAsync(sessionId);
+                return Ok(new { success = true, sessionInfo });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao obter informações da sessão");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+    }
+
+    public class ObservationRequest
+    {
+        public string Content { get; set; } = string.Empty;
+        public string ObservationType { get; set; } = string.Empty;
+        public string? SessionId { get; set; }
+    }
+}

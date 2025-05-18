@@ -1,0 +1,478 @@
+﻿using Microsoft.MCP;
+using Microsoft.SemanticKernel.Memory;
+using System.ComponentModel;
+using System.Text;
+using EemCore.Data.Repositories;
+using EemCore.Models;
+using EemCore.Services;
+using Microsoft.Extensions.Logging;
+
+namespace EemCore.Agents
+{
+    /// <summary>
+    /// Implementação do Agente de Contexto para o sistema Εεm (Ευ-εnable-memory).
+    /// 
+    /// O Agente de Contexto é responsável por:
+    /// 1. Responder às requisições MCP fornecendo contexto relevante
+    /// 2. Navegar pela meta-estrutura .Re para acessar informações hierárquicas
+    /// 3. Recuperar dados de arquivos .aje, .ire e .e conforme necessário
+    /// 4. Formatar o contexto para uso em assistentes de IA
+    /// </summary>
+    [McpToolType]
+    public class ContextAgent
+    {
+        private readonly IActivityRepository _activityRepository;
+        private readonly IRelationRepository _relationRepository;
+        private readonly IEulerianFlowRepository _flowRepository;
+        private readonly ISemanticTextMemory _memory;
+        private readonly ContextEnrichmentService _enrichmentService;
+        private readonly ILogger<ContextAgent> _logger;
+        
+        private const string ActivitiesCollection = "activities";
+        private const string RelationsCollection = "relations";
+        private const string FlowsCollection = "flows";
+        
+        public ContextAgent(
+            IActivityRepository activityRepository,
+            IRelationRepository relationRepository,
+            IEulerianFlowRepository flowRepository,
+            ISemanticTextMemory memory,
+            ContextEnrichmentService enrichmentService,
+            ILogger<ContextAgent> logger)
+        {
+            _activityRepository = activityRepository;
+            _relationRepository = relationRepository;
+            _flowRepository = flowRepository;
+            _memory = memory;
+            _enrichmentService = enrichmentService;
+            _logger = logger;
+        }
+        
+        /// <summary>
+        /// Recupera o contexto relevante com base em uma consulta.
+        /// Esta é a principal ferramenta MCP exposta pelo agente.
+        /// </summary>
+        [McpTool("GetRelevantContext")]
+        [Description("Retrieves relevant context from Εεm memory systems based on a query")]
+        public async Task<string> GetRelevantContextAsync(
+            [Description("The query to search for relevant context")]
+            string query,
+            
+            [Description("Maximum number of results to return")]
+            int maxResults = 5,
+            
+            [Description("Types of files to search: 'aje', 'ire', 'e', or 'all'")]
+            string searchIn = "all",
+            
+            [Description("Time window in hours to search back, 0 for unlimited")]
+            int timeWindowHours = 24)
+        {
+            try
+            {
+                _logger.LogInformation("Buscando contexto para consulta: {Query}", query);
+                
+                // Validar os parâmetros
+                maxResults = Math.Clamp(maxResults, 1, 20);
+                searchIn = NormalizeSearchTypes(searchIn);
+                
+                // Definir janela de tempo
+                DateTime startTime = timeWindowHours > 0 
+                    ? DateTime.UtcNow.AddHours(-timeWindowHours)
+                    : DateTime.MinValue;
+                
+                // Buscar primeiro via memória semântica para melhor relevância
+                var relevantItems = await SearchMemoryAsync(query, searchIn, maxResults);
+                
+                // Se não encontrou resultados suficientes, buscar por tempo
+                if (relevantItems.Count < maxResults)
+                {
+                    await AppendTimeBasedResultsAsync(relevantItems, query, searchIn, 
+                        startTime, maxResults - relevantItems.Count);
+                }
+                
+                if (relevantItems.Count == 0)
+                {
+                    return $"Nenhum contexto relevante encontrado para: \"{query}\"\n" +
+                           $"Tente expandir a janela de tempo ou mudar os termos da consulta.";
+                }
+                
+                // Separar IDs por tipo para enriquecimento
+                string[] activityIds = relevantItems
+                    .Where(i => i.Type == "aje")
+                    .Select(i => i.Id)
+                    .ToArray();
+                    
+                string[] flowIds = relevantItems
+                    .Where(i => i.Type == "e")
+                    .Select(i => i.Id)
+                    .ToArray();
+                
+                // Enriquecer o contexto usando o serviço de enriquecimento
+                string enrichedContext = await _enrichmentService.EnrichContextAsync(
+                    query,
+                    activityIds,
+                    flowIds);
+                
+                return enrichedContext;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao recuperar contexto para consulta: {Query}", query);
+                return $"Erro ao recuperar contexto: {ex.Message}";
+            }
+        }
+        
+        /// <summary>
+        /// Armazena uma nova observação no sistema Εεm
+        /// </summary>
+        [McpTool("StoreObservation")]
+        [Description("Stores a new observation in the Εεm memory system")]
+        public async Task<string> StoreObservationAsync(
+            [Description("Content of the observation")]
+            string content,
+            
+            [Description("Type of the observation, e.g., 'ide_activity', 'search', 'ai_interaction'")]
+            string observationType,
+            
+            [Description("Optional session ID to associate with the observation")]
+            string? sessionId = null)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    return "Erro: O conteúdo da observação não pode estar vazio.";
+                }
+                
+                if (string.IsNullOrWhiteSpace(observationType))
+                {
+                    return "Erro: O tipo da observação não pode estar vazio.";
+                }
+                
+                // Criar um novo evento de atividade
+                var activityEvent = new ActivityJournalEvent
+                {
+                    ActivityType = observationType,
+                    Content = content,
+                    Source = "mcp_manual",
+                    SessionId = sessionId ?? Guid.NewGuid().ToString()
+                };
+                
+                // Salvar o evento
+                string eventId = await _activityRepository.SaveActivityEventAsync(activityEvent);
+                
+                _logger.LogInformation("Observação armazenada com sucesso: {Id}, Tipo: {Type}",
+                    eventId, observationType);
+                
+                return $"Observação armazenada com sucesso. ID: {eventId}";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao armazenar observação");
+                return $"Erro ao armazenar observação: {ex.Message}";
+            }
+        }
+        
+        /// <summary>
+        /// Obtém informações sobre uma sessão específica
+        /// </summary>
+        [McpTool("GetSessionInfo")]
+        [Description("Gets information about a specific session")]
+        public async Task<string> GetSessionInfoAsync(
+            [Description("Session ID to get information about")]
+            string sessionId)
+        {
+            try
+            {
+                // Buscar atividades da sessão
+                var activities = await _activityRepository.GetActivityEventsForSessionAsync(sessionId);
+                
+                if (!activities.Any())
+                {
+                    return $"Nenhuma atividade encontrada para a sessão {sessionId}.";
+                }
+                
+                // Agrupar por tipo de atividade
+                var groupedActivities = activities.GroupBy(a => a.ActivityType);
+                
+                // Calcular estatísticas
+                var firstActivity = activities.OrderBy(a => a.Timestamp).First();
+                var lastActivity = activities.OrderBy(a => a.Timestamp).Last();
+                var duration = lastActivity.Timestamp - firstActivity.Timestamp;
+                
+                // Formatar a saída
+                var sb = new StringBuilder();
+                sb.AppendLine($"# Informações da Sessão: {sessionId}");
+                sb.AppendLine();
+                sb.AppendLine($"Total de atividades: {activities.Count()}");
+                sb.AppendLine($"Início: {firstActivity.Timestamp:g}");
+                sb.AppendLine($"Fim: {lastActivity.Timestamp:g}");
+                sb.AppendLine($"Duração: {FormatDuration(duration)}");
+                sb.AppendLine();
+                
+                sb.AppendLine("## Tipos de Atividade");
+                foreach (var group in groupedActivities)
+                {
+                    sb.AppendLine($"- {group.Key}: {group.Count()} atividades");
+                }
+                
+                sb.AppendLine();
+                sb.AppendLine("## Fontes de Atividade");
+                foreach (var source in activities.GroupBy(a => a.Source))
+                {
+                    sb.AppendLine($"- {source.Key}: {source.Count()} atividades");
+                }
+                
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao obter informações da sessão {SessionId}", sessionId);
+                return $"Erro ao obter informações da sessão: {ex.Message}";
+            }
+        }
+        
+        // Métodos auxiliares
+        
+        /// <summary>
+        /// Busca na memória semântica por itens relevantes
+        /// </summary>
+        private async Task<List<RelevantItem>> SearchMemoryAsync(
+            string query, 
+            string searchIn,
+            int maxResults)
+        {
+            var relevantItems = new List<RelevantItem>();
+            
+            // Buscar em coleções conforme o tipo solicitado
+            if (searchIn.Contains("aje") || searchIn == "all")
+            {
+                var activityResults = await _memory.SearchAsync(
+                    ActivitiesCollection,
+                    query,
+                    limit: maxResults,
+                    minRelevanceScore: 0.5);
+                    
+                foreach (var result in activityResults)
+                {
+                    relevantItems.Add(new RelevantItem
+                    {
+                        Id = result.Metadata.Id,
+                        Type = "aje",
+                        Score = result.Relevance,
+                        Description = result.Metadata.Description
+                    });
+                }
+            }
+            
+            if (searchIn.Contains("ire") || searchIn == "all")
+            {
+                var relationResults = await _memory.SearchAsync(
+                    RelationsCollection,
+                    query,
+                    limit: maxResults,
+                    minRelevanceScore: 0.5);
+                    
+                foreach (var result in relationResults)
+                {
+                    relevantItems.Add(new RelevantItem
+                    {
+                        Id = result.Metadata.Id,
+                        Type = "ire",
+                        Score = result.Relevance,
+                        Description = result.Metadata.Description
+                    });
+                }
+            }
+            
+            if (searchIn.Contains("e") || searchIn == "all")
+            {
+                var flowResults = await _memory.SearchAsync(
+                    FlowsCollection,
+                    query,
+                    limit: maxResults,
+                    minRelevanceScore: 0.5);
+                    
+                foreach (var result in flowResults)
+                {
+                    relevantItems.Add(new RelevantItem
+                    {
+                        Id = result.Metadata.Id,
+                        Type = "e",
+                        Score = result.Relevance,
+                        Description = result.Metadata.Description
+                    });
+                }
+            }
+            
+            // Ordenar por relevância e limitar resultados
+            return relevantItems
+                .OrderByDescending(i => i.Score)
+                .Take(maxResults)
+                .ToList();
+        }
+        
+        /// <summary>
+        /// Adiciona resultados baseados em tempo se não houver resultados suficientes da busca semântica
+        /// </summary>
+        private async Task AppendTimeBasedResultsAsync(
+            List<RelevantItem> existingItems,
+            string query, 
+            string searchIn,
+            DateTime startTime,
+            int maxAdditionalResults)
+        {
+            var existingIds = new HashSet<string>(existingItems.Select(i => i.Id));
+            
+            // Buscar atividades recentes
+            if (searchIn.Contains("aje") || searchIn == "all")
+            {
+                var recentActivities = await _activityRepository.GetActivityEventsInTimeRangeAsync(
+                    startTime, DateTime.UtcNow, maxAdditionalResults * 2);
+                    
+                foreach (var activity in recentActivities)
+                {
+                    if (existingIds.Contains(activity.Id))
+                        continue;
+                        
+                    existingItems.Add(new RelevantItem
+                    {
+                        Id = activity.Id,
+                        Type = "aje",
+                        Score = 0.4, // Score arbitrário para resultados baseados em tempo
+                        Description = $"Atividade: {activity.ActivityType}, Fonte: {activity.Source}"
+                    });
+                    
+                    existingIds.Add(activity.Id);
+                    
+                    if (existingItems.Count >= maxAdditionalResults)
+                        return;
+                }
+            }
+            
+            // Buscar relações recentes
+            if (searchIn.Contains("ire") || searchIn == "all")
+            {
+                var recentRelations = await _relationRepository.GetRelationsInTimeRangeAsync(
+                    startTime, DateTime.UtcNow, maxAdditionalResults);
+                    
+                foreach (var relation in recentRelations)
+                {
+                    if (existingIds.Contains(relation.Id))
+                        continue;
+                        
+                    existingItems.Add(new RelevantItem
+                    {
+                        Id = relation.Id,
+                        Type = "ire",
+                        Score = 0.3,
+                        Description = $"Relação: {relation.RelationType}"
+                    });
+                    
+                    existingIds.Add(relation.Id);
+                    
+                    if (existingItems.Count >= maxAdditionalResults)
+                        return;
+                }
+            }
+            
+            // Buscar fluxos recentes
+            if (searchIn.Contains("e") || searchIn == "all")
+            {
+                var recentFlows = await _flowRepository.GetFlowsInTimeRangeAsync(
+                    startTime, DateTime.UtcNow, maxAdditionalResults);
+                    
+                foreach (var flow in recentFlows)
+                {
+                    if (existingIds.Contains(flow.Id))
+                        continue;
+                        
+                    existingItems.Add(new RelevantItem
+                    {
+                        Id = flow.Id,
+                        Type = "e",
+                        Score = 0.3,
+                        Description = $"Fluxo: {flow.Name}"
+                    });
+                    
+                    existingIds.Add(flow.Id);
+                    
+                    if (existingItems.Count >= maxAdditionalResults)
+                        return;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Normaliza os tipos de busca
+        /// </summary>
+        private string NormalizeSearchTypes(string searchIn)
+        {
+            if (string.IsNullOrWhiteSpace(searchIn))
+                return "all";
+                
+            searchIn = searchIn.ToLowerInvariant();
+            
+            if (searchIn == "all" || searchIn == "*")
+                return "all";
+                
+            var validTypes = new[] { "aje", "ire", "e" };
+            var requestedTypes = searchIn.Split(',')
+                .Select(t => t.Trim())
+                .Where(t => validTypes.Contains(t));
+                
+            return requestedTypes.Any() ? string.Join(",", requestedTypes) : "all";
+        }
+        
+        /// <summary>
+        /// Formata uma duração de tempo de forma amigável
+        /// </summary>
+        private string FormatDuration(TimeSpan duration)
+        {
+            if (duration.TotalDays >= 1)
+                return $"{duration.Days} dias, {duration.Hours} horas";
+                
+            if (duration.TotalHours >= 1)
+                return $"{duration.Hours} horas, {duration.Minutes} minutos";
+                
+            if (duration.TotalMinutes >= 1)
+                return $"{duration.Minutes} minutos, {duration.Seconds} segundos";
+                
+            return $"{duration.Seconds} segundos";
+        }
+        
+        /// <summary>
+        /// Classe privada que representa um item relevante encontrado
+        /// </summary>
+        private class RelevantItem
+        {
+            public string Id { get; set; } = string.Empty;
+            public string Type { get; set; } = string.Empty;
+            public double Score { get; set; }
+            public string Description { get; set; } = string.Empty;
+        }
+    }
+    
+    /// <summary>
+    /// Representa um evento de atividade para o journal
+    /// </summary>
+    public class ActivityJournalEvent
+    {
+        public DateTime Timestamp { get; set; }
+        public string ActivityType { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+        public string SessionId { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Representa um resultado de contexto
+    /// </summary>
+    public class ContextResult
+    {
+        public string Source { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public double Relevance { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+}

@@ -1,0 +1,13 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\EemCore",
+    "\\EemCore.Tests",
+    "\\EemCore\\Agents",
+    "\\EemCore\\Models",
+    "\\EemCore\\Processing",
+    "\\EemServer"
+  ],
+  "SelectedNode": "\\EemCore.Tests\\EemCore.Tests.csproj",
+  "PreviewInSolutionExplorer": false
+}

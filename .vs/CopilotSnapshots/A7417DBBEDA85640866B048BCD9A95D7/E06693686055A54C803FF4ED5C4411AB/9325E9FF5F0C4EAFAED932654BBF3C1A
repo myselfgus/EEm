@@ -1,0 +1,350 @@
+﻿using Microsoft.MCP;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Memory;
+using Microsoft.SemanticKernel.Connectors.AzureAI;
+using System.ComponentModel;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.AI.OpenAI;
+using Microsoft.Azure.Cosmos;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+
+namespace EemCore.Agents
+{
+    /// <summary>
+    /// Implementação do Agente de Correlação para o sistema Εεm (Ευ-εnable-memory).
+    /// 
+    /// O Agente de Correlação é responsável por:
+    /// 1. Identificar conexões e padrões entre diferentes entidades e atividades
+    /// 2. Construir grafos relacionais semânticos entre diferentes contextos
+    /// 3. Atualizar a meta-estrutura .Re com novas correlações descobertas
+    /// 4. Fornecer insights baseados em correlações temporais e semânticas
+    /// </summary>
+    [McpToolType]
+    public class CorrelationAgent
+    {
+        private readonly ISemanticTextMemory _memory;
+        private readonly BlobServiceClient _blobServiceClient;
+        private readonly CosmosClient _cosmosClient;
+        private readonly OpenAIClient _openAIClient;
+        private readonly ILogger<CorrelationAgent> _logger;
+        private readonly IKernel _kernel;
+
+        private const string AjeContainer = "aje-files";
+        private const string IreContainer = "ire-files";
+        private const string EContainer = "e-files";
+        private const string ReContainer = "re-relations";
+        private const string DatabaseId = "EemDatabase";
+        private const string RelationContainerId = "Relations";
+
+        /// <summary>
+        /// Construtor para o Agente de Correlação
+        /// </summary>
+        public CorrelationAgent(
+            ISemanticTextMemory memory,
+            BlobServiceClient blobServiceClient,
+            CosmosClient cosmosClient,
+            OpenAIClient openAIClient,
+            IKernel kernel,
+            ILogger<CorrelationAgent> logger)
+        {
+            _memory = memory;
+            _blobServiceClient = blobServiceClient;
+            _cosmosClient = cosmosClient;
+            _openAIClient = openAIClient;
+            _kernel = kernel;
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Identifica correlações entre diferentes contextos de atividade
+        /// </summary>
+        /// <param name="timeWindow">Janela de tempo para analisar correlações</param>
+        /// <returns>Lista de correlações identificadas</returns>
+        [McpTool("Identifica correlações entre atividades dentro de uma janela de tempo específica")]
+        public async Task<IList<ActivityCorrelation>> IdentifyCorrelationsAsync(
+            [Description("Janela de tempo em horas para analisar")] int timeWindow = 24)
+        {
+            _logger.LogInformation($"Identificando correlações em uma janela de {timeWindow} horas");
+            
+            // 1. Recuperar atividades recentes da janela de tempo especificada
+            var recentActivities = await GetRecentActivitiesAsync(timeWindow);
+            
+            // 2. Processar atividades para extrair entidades e conceitos
+            var entities = await ExtractEntitiesAsync(recentActivities);
+            
+            // 3. Utilizar modelo de embeddings para identificar similaridades semânticas
+            var semanticCorrelations = await FindSemanticCorrelationsAsync(entities);
+            
+            // 4. Atualizar o banco de dados de relações (.Re)
+            await UpdateRelationDatabaseAsync(semanticCorrelations);
+            
+            return semanticCorrelations;
+        }
+
+        /// <summary>
+        /// Recupera atividades recentes com base em uma janela de tempo
+        /// </summary>
+        private async Task<IList<ActivityData>> GetRecentActivitiesAsync(int timeWindow)
+        {
+            var activities = new List<ActivityData>();
+            var cutoffTime = DateTime.UtcNow.AddHours(-timeWindow);
+            
+            // Recuperar arquivos .aje recentes
+            var ajeContainer = _blobServiceClient.GetBlobContainerClient(AjeContainer);
+            await foreach (var blob in ajeContainer.GetBlobsAsync())
+            {
+                if (blob.Properties.CreatedOn > cutoffTime)
+                {
+                    var client = ajeContainer.GetBlobClient(blob.Name);
+                    var content = await client.DownloadContentAsync();
+                    var activityData = JsonSerializer.Deserialize<ActivityData>(content.Value.Content);
+                    if (activityData != null)
+                    {
+                        activities.Add(activityData);
+                    }
+                }
+            }
+            
+            return activities;
+        }
+
+        /// <summary>
+        /// Extrai entidades e conceitos de atividades
+        /// </summary>
+        private async Task<IList<EntityExtraction>> ExtractEntitiesAsync(IList<ActivityData> activities)
+        {
+            var entities = new List<EntityExtraction>();
+            
+            foreach (var activity in activities)
+            {
+                // Usar o Semantic Kernel para extrair entidades
+                var entityExtractionPrompt = @"
+                Extraia as entidades principais desta atividade do usuário:
+                Atividade: {{$activity}}
+                
+                Entidades (formato JSON):";
+                
+                var result = await _kernel.InvokePromptAsync(
+                    entityExtractionPrompt,
+                    new KernelArguments { ["activity"] = JsonSerializer.Serialize(activity) }
+                );
+                
+                var extractedEntities = JsonSerializer.Deserialize<EntityExtraction>(result.ToString());
+                if (extractedEntities != null)
+                {
+                    entities.Add(extractedEntities);
+                }
+            }
+            
+            return entities;
+        }
+
+        /// <summary>
+        /// Identifica correlações semânticas entre entidades
+        /// </summary>
+        private async Task<IList<ActivityCorrelation>> FindSemanticCorrelationsAsync(IList<EntityExtraction> entities)
+        {
+            var correlations = new List<ActivityCorrelation>();
+            
+            // Gerar embeddings para todas as entidades
+            var embeddings = new Dictionary<string, float[]>();
+            foreach (var entity in entities)
+            {
+                foreach (var item in entity.Entities)
+                {
+                    if (!embeddings.ContainsKey(item.Name))
+                    {
+                        // Gerar embedding usando o modelo de embedding configurado
+                        var embedding = await _memory.GetEmbeddingAsync(item.Name);
+                        embeddings[item.Name] = embedding.ToArray();
+                    }
+                }
+            }
+            
+            // Calcular similaridades coseno entre embeddings
+            foreach (var entity1 in embeddings.Keys)
+            {
+                foreach (var entity2 in embeddings.Keys)
+                {
+                    if (entity1 != entity2)
+                    {
+                        float similarity = CalculateCosineSimilarity(embeddings[entity1], embeddings[entity2]);
+                        
+                        // Considerar correlações com similaridade acima de um limiar
+                        if (similarity > 0.75f)
+                        {
+                            correlations.Add(new ActivityCorrelation
+                            {
+                                EntityA = entity1,
+                                EntityB = entity2,
+                                Similarity = similarity,
+                                CorrelationType = "SemanticSimilarity",
+                                Timestamp = DateTime.UtcNow
+                            });
+                        }
+                    }
+                }
+            }
+            
+            return correlations;
+        }
+        
+        /// <summary>
+        /// Calcula a similaridade de cosseno entre dois vetores de embedding
+        /// </summary>
+        private float CalculateCosineSimilarity(float[] a, float[] b)
+        {
+            float dotProduct = 0;
+            float normA = 0;
+            float normB = 0;
+            
+            for (int i = 0; i < a.Length; i++)
+            {
+                dotProduct += a[i] * b[i];
+                normA += a[i] * a[i];
+                normB += b[i] * b[i];
+            }
+            
+            return dotProduct / (float)(Math.Sqrt(normA) * Math.Sqrt(normB));
+        }
+
+        /// <summary>
+        /// Atualiza o banco de dados de relações com as novas correlações
+        /// </summary>
+        private async Task UpdateRelationDatabaseAsync(IList<ActivityCorrelation> correlations)
+        {
+            var container = _cosmosClient.GetContainer(DatabaseId, RelationContainerId);
+            
+            foreach (var correlation in correlations)
+            {
+                // Criar um documento de relação para cada correlação
+                var relationDocument = new
+                {
+                    id = Guid.NewGuid().ToString(),
+                    sourceEntity = correlation.EntityA,
+                    targetEntity = correlation.EntityB,
+                    similarity = correlation.Similarity,
+                    correlationType = correlation.CorrelationType,
+                    timestamp = correlation.Timestamp
+                };
+                
+                await container.CreateItemAsync(relationDocument, new PartitionKey(relationDocument.id));
+                _logger.LogInformation($"Correlação adicionada: {correlation.EntityA} - {correlation.EntityB} ({correlation.Similarity})");
+            }
+        }
+
+        /// <summary>
+        /// Gera um relatório de insigths com base nas correlações identificadas
+        /// </summary>
+        [McpTool("Gera um relatório de insights baseado em correlações recentes")]
+        public async Task<string> GenerateInsightsReportAsync(
+            [Description("Número máximo de insights a serem gerados")] int maxInsights = 5)
+        {
+            _logger.LogInformation($"Gerando relatório de insights (máximo {maxInsights})");
+            
+            // Recuperar correlações recentes
+            var recentCorrelations = await GetRecentCorrelationsAsync();
+            
+            // Filtrar as correlações mais significativas
+            var topCorrelations = recentCorrelations
+                .OrderByDescending(c => c.Similarity)
+                .Take(maxInsights)
+                .ToList();
+            
+            // Usar a IA para gerar insights baseados nas correlações
+            var insightPrompt = @"
+            Com base nas seguintes correlações entre entidades nas atividades do usuário,
+            gere insights úteis que possam ajudar o usuário a compreender melhor seu contexto de trabalho:
+            
+            Correlações:
+            {{$correlations}}
+            
+            Gere 3-5 insights úteis, concretos e acionáveis:";
+            
+            var result = await _kernel.InvokePromptAsync(
+                insightPrompt,
+                new KernelArguments { ["correlations"] = JsonSerializer.Serialize(topCorrelations) }
+            );
+            
+            return result.ToString();
+        }
+
+        /// <summary>
+        /// Recupera correlações recentes do banco de dados
+        /// </summary>
+        private async Task<IList<ActivityCorrelation>> GetRecentCorrelationsAsync()
+        {
+            var container = _cosmosClient.GetContainer(DatabaseId, RelationContainerId);
+            var correlations = new List<ActivityCorrelation>();
+            
+            // Recuperar correlações das últimas 48 horas
+            var cutoffTime = DateTime.UtcNow.AddHours(-48);
+            var query = $"SELECT * FROM c WHERE c.timestamp >= '{cutoffTime:O}'";
+            
+            var iterator = container.GetItemQueryIterator<dynamic>(query);
+            while (iterator.HasMoreResults)
+            {
+                var response = await iterator.ReadNextAsync();
+                foreach (var item in response)
+                {
+                    correlations.Add(new ActivityCorrelation
+                    {
+                        EntityA = item.sourceEntity,
+                        EntityB = item.targetEntity,
+                        Similarity = item.similarity,
+                        CorrelationType = item.correlationType,
+                        Timestamp = item.timestamp
+                    });
+                }
+            }
+            
+            return correlations;
+        }
+    }
+
+    /// <summary>
+    /// Representa dados de uma atividade capturada
+    /// </summary>
+    public class ActivityData
+    {
+        public string Id { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+        public string ActivityType { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
+        public Dictionary<string, string> Metadata { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Representa entidades extraídas de uma atividade
+    /// </summary>
+    public class EntityExtraction
+    {
+        public string ActivityId { get; set; } = string.Empty;
+        public List<Entity> Entities { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Representa uma entidade extraída
+    /// </summary>
+    public class Entity
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Type { get; set; } = string.Empty;
+        public float Relevance { get; set; }
+    }
+
+    /// <summary>
+    /// Representa uma correlação entre atividades ou entidades
+    /// </summary>
+    public class ActivityCorrelation
+    {
+        public string EntityA { get; set; } = string.Empty;
+        public string EntityB { get; set; } = string.Empty;
+        public float Similarity { get; set; }
+        public string CorrelationType { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+    }
+}

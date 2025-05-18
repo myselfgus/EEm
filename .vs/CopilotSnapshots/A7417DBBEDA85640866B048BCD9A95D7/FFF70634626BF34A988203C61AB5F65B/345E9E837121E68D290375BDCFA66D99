@@ -1,0 +1,263 @@
+﻿using EemCore.Models;
+using EemCore.Services.Resilient;
+using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel.Memory;
+using System.Text.Json;
+
+namespace EemCore.Data.Repositories
+{
+    /// <summary>
+    /// Implementação do repositório para scripts GenAIScript
+    /// </summary>
+    public class ScriptRepository : BaseBlobRepository, IScriptRepository
+    {
+        private const string ContainerName = "scripts";
+        private const string MemoryCollection = "scripts";
+        private const string MetadataExtension = ".meta";
+        private const string ContentExtension = ".genai";
+        
+        public ScriptRepository(
+            ResilientBlobServiceClient blobServiceClient,
+            ISemanticTextMemory memory,
+            ILogger<ScriptRepository> logger)
+            : base(blobServiceClient, memory, logger)
+        {
+        }
+        
+        /// <summary>
+        /// Salva um novo script no armazenamento
+        /// </summary>
+        public async Task<string> SaveScriptAsync(ScriptInfo script, string content, CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            
+            // Gerar ID único para o script se não definido
+            if (string.IsNullOrEmpty(script.Id))
+            {
+                script.Id = Guid.NewGuid().ToString();
+            }
+            
+            // Atualizar data de modificação
+            script.ModifiedDateTime = DateTime.UtcNow;
+            
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            
+            // Salvar os metadados do script
+            string metadataBlobName = $"{script.Id}{MetadataExtension}";
+            var metadataBlobClient = containerClient.GetBlobClient(metadataBlobName);
+            
+            string metadataJson = JsonSerializer.Serialize(script);
+            await metadataBlobClient.UploadAsync(
+                new BinaryData(metadataJson),
+                overwrite: true,
+                cancellationToken: cancellationToken
+            );
+            
+            // Salvar o conteúdo do script
+            string contentBlobName = $"{script.Id}{ContentExtension}";
+            var contentBlobClient = containerClient.GetBlobClient(contentBlobName);
+            
+            await contentBlobClient.UploadAsync(
+                new BinaryData(content),
+                overwrite: true,
+                cancellationToken: cancellationToken
+            );
+            
+            // Adicionar ao índice semântico
+            string text = $"{script.Name}: {script.Description}";
+            if (script.Tags.Count > 0)
+            {
+                text += $" Tags: {string.Join(", ", script.Tags)}";
+            }
+            
+            await _memory.SaveInformationAsync(
+                collection: MemoryCollection,
+                id: script.Id,
+                text: text,
+                description: $"Script: {script.Name}, Ativo: {script.IsActive}",
+                additionalMetadata: script.Id,
+                cancellationToken: cancellationToken
+            );
+            
+            _logger.LogInformation("Script salvo: {Id}, {Name}", script.Id, script.Name);
+            
+            return script.Id;
+        }
+        
+        /// <summary>
+        /// Obtém um script pelo nome
+        /// </summary>
+        public async Task<(ScriptInfo Info, string Content)?> GetScriptByNameAsync(string scriptName, CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            
+            // Buscar script pelo nome usando busca semântica
+            var searchResults = await _memory.SearchAsync(
+                collection: MemoryCollection,
+                query: scriptName,
+                limit: 10,
+                minRelevanceScore: 0.7,
+                cancellationToken: cancellationToken
+            );
+            
+            foreach (var result in searchResults)
+            {
+                // O nome precisa corresponder exatamente (case-insensitive)
+                if (result.Metadata.Description?.StartsWith($"Script: {scriptName},", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    string scriptId = result.Metadata.AdditionalMetadata;
+                    return await GetScriptByIdAsync(scriptId, cancellationToken);
+                }
+            }
+            
+            // Se não encontrou por busca semântica, tentar listar todos e comparar
+            _logger.LogInformation("Script '{Name}' não encontrado por busca semântica, verificando listagem completa", scriptName);
+            
+            var scripts = await ListScriptsAsync(cancellationToken);
+            
+            foreach (var script in scripts)
+            {
+                if (string.Equals(script.Name, scriptName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return await GetScriptByIdAsync(script.Id, cancellationToken);
+                }
+            }
+            
+            return null;
+        }
+        
+        /// <summary>
+        /// Lista todos os scripts disponíveis
+        /// </summary>
+        public async Task<IEnumerable<ScriptInfo>> ListScriptsAsync(CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            
+            var results = new List<ScriptInfo>();
+            
+            await foreach (var blob in containerClient.GetBlobsAsync(cancellationToken: cancellationToken))
+            {
+                if (blob.Name.EndsWith(MetadataExtension))
+                {
+                    var blobClient = containerClient.GetBlobClient(blob.Name);
+                    var content = await blobClient.DownloadContentAsync(cancellationToken);
+                    var jsonContent = content.Value.Content.ToString();
+                    
+                    if (!string.IsNullOrEmpty(jsonContent))
+                    {
+                        try
+                        {
+                            var scriptInfo = JsonSerializer.Deserialize<ScriptInfo>(jsonContent);
+                            if (scriptInfo != null)
+                            {
+                                results.Add(scriptInfo);
+                            }
+                        }
+                        catch (JsonException ex)
+                        {
+                            _logger.LogError(ex, "Erro ao deserializar informações do script: {BlobName}", blob.Name);
+                        }
+                    }
+                }
+            }
+            
+            return results.OrderBy(s => s.Name);
+        }
+        
+        /// <summary>
+        /// Exclui um script específico
+        /// </summary>
+        public async Task<bool> DeleteScriptAsync(string scriptId, CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            
+            bool success = true;
+            
+            // Excluir metadados
+            string metadataBlobName = $"{scriptId}{MetadataExtension}";
+            var metadataBlobClient = containerClient.GetBlobClient(metadataBlobName);
+            
+            try
+            {
+                await metadataBlobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao excluir metadados do script: {Id}", scriptId);
+                success = false;
+            }
+            
+            // Excluir conteúdo
+            string contentBlobName = $"{scriptId}{ContentExtension}";
+            var contentBlobClient = containerClient.GetBlobClient(contentBlobName);
+            
+            try
+            {
+                await contentBlobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao excluir conteúdo do script: {Id}", scriptId);
+                success = false;
+            }
+            
+            // Remover do índice semântico
+            try
+            {
+                await _memory.RemoveAsync(MemoryCollection, scriptId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao remover script do índice semântico: {Id}", scriptId);
+                success = false;
+            }
+            
+            _logger.LogInformation("Script excluído: {Id}, Sucesso: {Success}", scriptId, success);
+            
+            return success;
+        }
+        
+        /// <summary>
+        /// Método auxiliar para obter um script pelo ID
+        /// </summary>
+        private async Task<(ScriptInfo Info, string Content)?> GetScriptByIdAsync(string scriptId, CancellationToken cancellationToken)
+        {
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            
+            // Obter metadados
+            string metadataBlobName = $"{scriptId}{MetadataExtension}";
+            var metadataBlobClient = containerClient.GetBlobClient(metadataBlobName);
+            
+            try
+            {
+                var metadataContent = await metadataBlobClient.DownloadContentAsync(cancellationToken);
+                var metadataJson = metadataContent.Value.Content.ToString();
+                
+                if (!string.IsNullOrEmpty(metadataJson))
+                {
+                    var scriptInfo = JsonSerializer.Deserialize<ScriptInfo>(metadataJson);
+                    
+                    if (scriptInfo != null)
+                    {
+                        // Obter conteúdo
+                        string contentBlobName = $"{scriptId}{ContentExtension}";
+                        var contentBlobClient = containerClient.GetBlobClient(contentBlobName);
+                        
+                        var scriptContent = await contentBlobClient.DownloadContentAsync(cancellationToken);
+                        var content = scriptContent.Value.Content.ToString();
+                        
+                        return (scriptInfo, content);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao recuperar script: {Id}", scriptId);
+            }
+            
+            return null;
+        }
+    }
+}

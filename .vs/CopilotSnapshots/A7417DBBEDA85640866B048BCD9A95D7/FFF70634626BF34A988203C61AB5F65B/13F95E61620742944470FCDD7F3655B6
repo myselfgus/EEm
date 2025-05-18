@@ -1,0 +1,547 @@
+﻿using Microsoft.MCP;
+using Microsoft.Extensions.Logging;
+using System.ComponentModel;
+using Azure.Storage.Blobs;
+using Microsoft.Azure.Cosmos;
+using System.Text.Json;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Connectors.AzureAI;
+using EemCore.Data.Repositories;
+using EemCore.Models;
+using System.Text;
+
+namespace EemCore.Agents
+{
+    /// <summary>
+    /// Implementação do Agente Euleriano para o sistema Εεm (Ευ-εnable-memory).
+    /// 
+    /// O Agente Euleriano é responsável por:
+    /// 1. Processar eventos de atividade e relação em fluxos eulerianos
+    /// 2. Identificar padrões em sequências de atividades
+    /// 3. Construir e manter grafos de fluxo de informações
+    /// 4. Garantir que cada informação seja processada exatamente uma vez
+    /// </summary>
+    [McpToolType]
+    public class EulerianAgent
+    {
+        private readonly IActivityRepository _activityRepository;
+        private readonly IRelationRepository _relationRepository;
+        private readonly IEulerianFlowRepository _flowRepository;
+        private readonly ILogger<EulerianAgent> _logger;
+
+        public EulerianAgent(
+            IActivityRepository activityRepository,
+            IRelationRepository relationRepository,
+            IEulerianFlowRepository flowRepository,
+            ILogger<EulerianAgent> logger)
+        {
+            _activityRepository = activityRepository;
+            _relationRepository = relationRepository;
+            _flowRepository = flowRepository;
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Processa atividades e relações para criar fluxos eulerianos
+        /// </summary>
+        [McpTool("ProcessEulerianFlow")]
+        [Description("Processes activities and relations into an Eulerian flow")]
+        public async Task<string> ProcessEulerianFlowAsync(
+            [Description("Session ID to process")]
+            string sessionId,
+
+            [Description("Optional name for the generated flow")]
+            string? flowName = null,
+
+            [Description("Optional time window in hours to limit processing")]
+            int timeWindowHours = 24)
+        {
+            try
+            {
+                DateTime startTime = DateTime.UtcNow.AddHours(-timeWindowHours);
+                _logger.LogInformation("Iniciando processamento euleriano para sessão {SessionId}", sessionId);
+
+                // Buscar atividades da sessão
+                var activities = await _activityRepository.GetActivityEventsForSessionAsync(sessionId);
+                activities = activities.Where(a => a.Timestamp >= startTime).ToList();
+
+                if (!activities.Any())
+                {
+                    return $"Nenhuma atividade encontrada para a sessão {sessionId} nas últimas {timeWindowHours} horas.";
+                }
+
+                _logger.LogInformation("Encontradas {Count} atividades para processamento", activities.Count());
+
+                // Buscar relações entre atividades
+                var activityIds = activities.Select(a => a.Id).ToArray();
+                var relations = await _relationRepository.GetRelationsForEventsAsync(activityIds);
+
+                _logger.LogInformation("Encontradas {Count} relações entre atividades", relations.Count());
+
+                // Criar um fluxo euleriano com as atividades e relações
+                var flow = new EulerianFlow
+                {
+                    Name = flowName ?? $"Fluxo de sessão {sessionId}",
+                    Timestamp = DateTime.UtcNow,
+                    Categories = new List<string> { "auto-generated" },
+                    Summary = $"Fluxo euleriano gerado automaticamente para a sessão {sessionId} com {activities.Count()} atividades e {relations.Count()} relações.",
+                    Nodes = new List<FlowNode>(),
+                    Edges = new List<FlowEdge>()
+                };
+
+                // Implementação simplificada: cada atividade vira um nó
+                var nodeIdMap = new Dictionary<string, string>();
+
+                foreach (var activity in activities)
+                {
+                    var node = new FlowNode
+                    {
+                        EventId = activity.Id,
+                        NodeType = activity.ActivityType,
+                        Label = $"{activity.ActivityType} - {TruncateContent(activity.Content, 50)}",
+                        Metadata = new Dictionary<string, object>
+                        {
+                            { "source", activity.Source },
+                            { "timestamp", activity.Timestamp.ToString("o") }
+                        }
+                    };
+
+                    flow.Nodes.Add(node);
+                    nodeIdMap[activity.Id] = node.Id;
+                }
+
+                // Converter relações em arestas
+                foreach (var relation in relations)
+                {
+                    foreach (var sourceId in relation.RelatedEventIds)
+                    {
+                        foreach (var targetId in relation.RelatedEventIds.Where(id => id != sourceId))
+                        {
+                            if (nodeIdMap.TryGetValue(sourceId, out var sourceNodeId) &&
+                                nodeIdMap.TryGetValue(targetId, out var targetNodeId))
+                            {
+                                var edge = new FlowEdge
+                                {
+                                    SourceId = sourceNodeId,
+                                    TargetId = targetNodeId,
+                                    RelationType = relation.RelationType,
+                                    Weight = relation.RelationStrength
+                                };
+
+                                flow.Edges.Add(edge);
+                            }
+                        }
+                    }
+                }
+
+                // Identificar padrões de fluxo e calcular propriedades eulerianas
+                bool isEulerian = VerifyEulerianProperties(flow);
+
+                // Salvar o fluxo gerado
+                string flowId = await _flowRepository.SaveFlowAsync(flow);
+
+                string result = new StringBuilder()
+                    .AppendLine($"Fluxo euleriano processado com sucesso. ID: {flowId}")
+                    .AppendLine($"Nodes: {flow.Nodes.Count}, Edges: {flow.Edges.Count}")
+                    .AppendLine($"Propriedades eulerianas verificadas: {(isEulerian ? "Sim" : "Não")}")
+                    .ToString();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro no processamento euleriano para a sessão {SessionId}", sessionId);
+                return $"Erro no processamento euleriano: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Verifica o estado de um fluxo euleriano existente
+        /// </summary>
+        [McpTool("GetEulerianFlowStatus")]
+        [Description("Gets the status of an existing Eulerian flow")]
+        public async Task<string> GetEulerianFlowStatusAsync(
+            [Description("ID of the flow to check")]
+            string flowId)
+        {
+            try
+            {
+                var flow = await _flowRepository.GetFlowByIdAsync(flowId);
+
+                if (flow == null)
+                {
+                    return $"Fluxo não encontrado com ID: {flowId}";
+                }
+
+                // Analisar o fluxo e verificar suas propriedades
+                var sb = new StringBuilder();
+                sb.AppendLine($"# Fluxo Euleriano: {flow.Name}");
+                sb.AppendLine();
+                sb.AppendLine($"**ID**: {flow.Id}");
+                sb.AppendLine($"**Criado em**: {flow.Timestamp:g}");
+                sb.AppendLine($"**Categorias**: {string.Join(", ", flow.Categories)}");
+                sb.AppendLine();
+                sb.AppendLine($"**Descrição**: {flow.Summary}");
+                sb.AppendLine();
+                sb.AppendLine($"**Estrutura do Grafo**:");
+                sb.AppendLine($"- Nós: {flow.Nodes.Count}");
+                sb.AppendLine($"- Arestas: {flow.Edges.Count}");
+                sb.AppendLine();
+
+                // Propriedades eulerianas
+                bool isEulerian = VerifyEulerianProperties(flow);
+                sb.AppendLine($"**Propriedades Eulerianas**:");
+                sb.AppendLine($"- É um grafo euleriano completo: {(isEulerian ? "Sim" : "Não")}");
+                sb.AppendLine($"- Possui caminho euleriano: {(HasEulerianPath(flow) ? "Sim" : "Não")}");
+
+                // Análise de conectividade
+                var components = AnalyzeConnectivity(flow);
+                sb.AppendLine();
+                sb.AppendLine($"**Conectividade**:");
+                sb.AppendLine($"- Componentes conectados: {components}");
+                sb.AppendLine($"- Densidade do grafo: {CalculateGraphDensity(flow):F2}");
+
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao verificar status do fluxo euleriano {FlowId}", flowId);
+                return $"Erro ao verificar status do fluxo: {ex.Message}";
+            }
+        }
+
+        /// <summary>
+        /// Combina múltiplos fluxos em um único fluxo euleriano
+        /// </summary>
+        [McpTool("CombineEulerianFlows")]
+        [Description("Combines multiple Eulerian flows into a single flow")]
+        public async Task<string> CombineEulerianFlowsAsync(
+            [Description("Comma-separated list of flow IDs to combine")]
+            string flowIds,
+
+            [Description("Name for the new combined flow")]
+            string newFlowName)
+        {
+            try
+            {
+                // Validar entrada
+                if (string.IsNullOrWhiteSpace(flowIds))
+                {
+                    return "Erro: A lista de IDs de fluxo não pode estar vazia.";
+                }
+
+                if (string.IsNullOrWhiteSpace(newFlowName))
+                {
+                    return "Erro: O nome do novo fluxo não pode estar vazio.";
+                }
+
+                var idList = flowIds.Split(',')
+                    .Select(id => id.Trim())
+                    .Where(id => !string.IsNullOrEmpty(id))
+                    .ToArray();
+
+                if (idList.Length == 0)
+                {
+                    return "Erro: Nenhum ID de fluxo válido fornecido.";
+                }
+
+                // Recuperar os fluxos
+                var flows = new List<EulerianFlow>();
+                foreach (var id in idList)
+                {
+                    var flow = await _flowRepository.GetFlowByIdAsync(id);
+                    if (flow != null)
+                    {
+                        flows.Add(flow);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Fluxo não encontrado com ID: {Id}", id);
+                    }
+                }
+
+                if (flows.Count == 0)
+                {
+                    return "Nenhum fluxo encontrado com os IDs fornecidos.";
+                }
+
+                // Criar um novo fluxo combinado
+                var combinedFlow = new EulerianFlow
+                {
+                    Name = newFlowName,
+                    Timestamp = DateTime.UtcNow,
+                    Categories = flows.SelectMany(f => f.Categories).Distinct().ToList(),
+                    Summary = $"Fluxo euleriano combinado a partir de {flows.Count} fluxos existentes.",
+                    Nodes = new List<FlowNode>(),
+                    Edges = new List<FlowEdge>()
+                };
+
+                // Mapear os IDs dos nós antigos para os novos
+                var nodeIdMap = new Dictionary<string, string>();
+
+                // Adicionar todos os nós dos fluxos originais
+                foreach (var flow in flows)
+                {
+                    foreach (var node in flow.Nodes)
+                    {
+                        var newNode = new FlowNode
+                        {
+                            EventId = node.EventId,
+                            NodeType = node.NodeType,
+                            Label = node.Label,
+                            Metadata = new Dictionary<string, object>(node.Metadata)
+                        };
+
+                        // Adicionar metadata de origem
+                        newNode.Metadata["sourceFlow"] = flow.Id;
+
+                        combinedFlow.Nodes.Add(newNode);
+                        nodeIdMap[flow.Id + ":" + node.Id] = newNode.Id;
+                    }
+                }
+
+                // Adicionar todas as arestas dos fluxos originais
+                foreach (var flow in flows)
+                {
+                    foreach (var edge in flow.Edges)
+                    {
+                        // Mapear os IDs de origem e destino para os novos nós
+                        string sourceKey = flow.Id + ":" + edge.SourceId;
+                        string targetKey = flow.Id + ":" + edge.TargetId;
+
+                        if (nodeIdMap.TryGetValue(sourceKey, out var newSourceId) &&
+                            nodeIdMap.TryGetValue(targetKey, out var newTargetId))
+                        {
+                            var newEdge = new FlowEdge
+                            {
+                                SourceId = newSourceId,
+                                TargetId = newTargetId,
+                                RelationType = edge.RelationType,
+                                Weight = edge.Weight
+                            };
+
+                            combinedFlow.Edges.Add(newEdge);
+                        }
+                    }
+                }
+
+                // Adicionar arestas conectando fluxos
+                if (flows.Count > 1)
+                {
+                    // Estratégia simples: conectar o "último" nó de um fluxo com o "primeiro" do próximo
+                    for (int i = 0; i < flows.Count - 1; i++)
+                    {
+                        var currentFlow = flows[i];
+                        var nextFlow = flows[i + 1];
+
+                        if (currentFlow.Nodes.Count > 0 && nextFlow.Nodes.Count > 0)
+                        {
+                            // Encontrar um nó "final" no fluxo atual (simplificação)
+                            string currentNodeKey = currentFlow.Id + ":" + currentFlow.Nodes.Last().Id;
+
+                            // Encontrar um nó "inicial" no próximo fluxo (simplificação)
+                            string nextNodeKey = nextFlow.Id + ":" + nextFlow.Nodes.First().Id;
+
+                            if (nodeIdMap.TryGetValue(currentNodeKey, out var currentNewId) &&
+                                nodeIdMap.TryGetValue(nextNodeKey, out var nextNewId))
+                            {
+                                var connectingEdge = new FlowEdge
+                                {
+                                    SourceId = currentNewId,
+                                    TargetId = nextNewId,
+                                    RelationType = "flow_transition",
+                                    Weight = 0.5
+                                };
+
+                                combinedFlow.Edges.Add(connectingEdge);
+                            }
+                        }
+                    }
+                }
+
+                // Salvar o fluxo combinado
+                string newFlowId = await _flowRepository.SaveFlowAsync(combinedFlow);
+
+                return $"Fluxos combinados com sucesso em um novo fluxo euleriano. ID: {newFlowId}";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao combinar fluxos eulerianos");
+                return $"Erro ao combinar fluxos: {ex.Message}";
+            }
+        }
+
+        // Métodos auxiliares para análise de fluxos
+
+        /// <summary>
+        /// Trunca uma string em um tamanho máximo
+        /// </summary>
+        private string TruncateContent(string content, int maxLength)
+        {
+            if (string.IsNullOrEmpty(content))
+                return string.Empty;
+
+            if (content.Length <= maxLength)
+                return content;
+
+            return content.Substring(0, maxLength) + "...";
+        }
+
+        /// <summary>
+        /// Verifica se o grafo possui propriedades eulerianas
+        /// </summary>
+        private bool VerifyEulerianProperties(EulerianFlow flow)
+        {
+            // Implementação simplificada:
+            // Um grafo é euleriano se todos os vértices têm grau par
+
+            // Calcular o grau de cada vértice (nó)
+            var degrees = new Dictionary<string, int>();
+
+            foreach (var node in flow.Nodes)
+            {
+                degrees[node.Id] = 0;
+            }
+
+            foreach (var edge in flow.Edges)
+            {
+                if (degrees.ContainsKey(edge.SourceId))
+                    degrees[edge.SourceId]++;
+
+                if (degrees.ContainsKey(edge.TargetId))
+                    degrees[edge.TargetId]++;
+            }
+
+            // Verificar se todos os vértices têm grau par
+            return degrees.Values.All(d => d % 2 == 0);
+        }
+
+        /// <summary>
+        /// Verifica se o grafo possui um caminho euleriano (não necessariamente um ciclo)
+        /// </summary>
+        private bool HasEulerianPath(EulerianFlow flow)
+        {
+            // Implementação simplificada:
+            // Um grafo tem um caminho euleriano se no máximo dois vértices têm grau ímpar
+
+            // Calcular o grau de cada vértice (nó)
+            var degrees = new Dictionary<string, int>();
+
+            foreach (var node in flow.Nodes)
+            {
+                degrees[node.Id] = 0;
+            }
+
+            foreach (var edge in flow.Edges)
+            {
+                if (degrees.ContainsKey(edge.SourceId))
+                    degrees[edge.SourceId]++;
+
+                if (degrees.ContainsKey(edge.TargetId))
+                    degrees[edge.TargetId]++;
+            }
+
+            // Contar vértices com grau ímpar
+            int oddCount = degrees.Values.Count(d => d % 2 == 1);
+
+            // Um caminho euleriano existe se todos os vértices têm grau par (ciclo)
+            // ou se exatamente dois vértices têm grau ímpar
+            return oddCount == 0 || oddCount == 2;
+        }
+
+        /// <summary>
+        /// Analisa a conectividade do grafo
+        /// </summary>
+        private int AnalyzeConnectivity(EulerianFlow flow)
+        {
+            // Implementação simplificada:
+            // Encontra o número de componentes conectados no grafo
+
+            var visited = new HashSet<string>();
+            int components = 0;
+
+            // Para cada nó não visitado, iniciar uma busca em profundidade
+            foreach (var node in flow.Nodes)
+            {
+                if (!visited.Contains(node.Id))
+                {
+                    components++;
+                    DepthFirstSearch(flow, node.Id, visited);
+                }
+            }
+
+            return components;
+        }
+
+        /// <summary>
+        /// Busca em profundidade para encontrar componentes conectados
+        /// </summary>
+        private void DepthFirstSearch(EulerianFlow flow, string nodeId, HashSet<string> visited)
+        {
+            visited.Add(nodeId);
+
+            // Encontrar todas as arestas conectadas a este nó
+            var edges = flow.Edges.Where(e => e.SourceId == nodeId || e.TargetId == nodeId);
+
+            foreach (var edge in edges)
+            {
+                string neighbor = (edge.SourceId == nodeId) ? edge.TargetId : edge.SourceId;
+
+                if (!visited.Contains(neighbor))
+                {
+                    DepthFirstSearch(flow, neighbor, visited);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Calcula a densidade do grafo
+        /// </summary>
+        private double CalculateGraphDensity(EulerianFlow flow)
+        {
+            int nodes = flow.Nodes.Count;
+            int edges = flow.Edges.Count;
+
+            if (nodes <= 1)
+                return 0;
+
+            // Densidade = 2 * |E| / (|V| * (|V| - 1))
+            return (2.0 * edges) / (nodes * (nodes - 1));
+        }
+    }
+
+    /// <summary>
+    /// Representa um evento de relação interpretada (.ire)
+    /// </summary>
+    public class InterpretedRelationEvent
+    {
+        public DateTime Timestamp { get; set; }
+        public ActivityJournalEvent[] SourceEvents { get; set; } = Array.Empty<ActivityJournalEvent>();
+        public string RelationType { get; set; } = string.Empty;
+        public string Interpretation { get; set; } = string.Empty;
+        public double Confidence { get; set; }
+    }
+
+    /// <summary>
+    /// Representa um fluxo euleriano (.e)
+    /// </summary>
+    public class EulerianFlow
+    {
+        public string FlowId { get; set; } = string.Empty;
+        public (DateTime, DateTime) TimeRange { get; set; }
+        public InterpretedRelationEvent[] RelatedEvents { get; set; } = Array.Empty<InterpretedRelationEvent>();
+        public string FlowType { get; set; } = string.Empty;
+        public string Structure { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Representa um nó na meta-estrutura relacional euleriana (.Re)
+    /// </summary>
+    public class RelationEulerian
+    {
+        public string NodeId { get; set; } = string.Empty;
+        public string NodeType { get; set; } = string.Empty;
+        public (string, string)[] Connections { get; set; } = Array.Empty<(string, string)>();
+        public Dictionary<string, string> Properties { get; set; } = new Dictionary<string, string>();
+    }
+}

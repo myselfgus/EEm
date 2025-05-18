@@ -1,0 +1,240 @@
+﻿using EemCore.Models;
+using EemCore.Services.Resilient;
+using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel.Memory;
+using System.Text.Json;
+
+namespace EemCore.Data.Repositories
+{
+    /// <summary>
+    /// Implementação de repositório para fluxos eulerianos
+    /// </summary>
+    public class EulerianFlowRepository : BaseBlobRepository, IEulerianFlowRepository
+    {
+        private const string ContainerName = "e-files";
+        private const string MemoryCollection = "flows";
+        
+        public EulerianFlowRepository(
+            ResilientBlobServiceClient blobServiceClient,
+            ISemanticTextMemory memory,
+            ILogger<EulerianFlowRepository> logger)
+            : base(blobServiceClient, memory, logger)
+        {
+        }
+        
+        /// <summary>
+        /// Salva um novo fluxo euleriano no armazenamento
+        /// </summary>
+        public async Task<string> SaveFlowAsync(EulerianFlow flow, CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            
+            // Gerar ID único para o fluxo se não definido
+            if (string.IsNullOrEmpty(flow.Id))
+            {
+                flow.Id = Guid.NewGuid().ToString();
+            }
+            
+            // Criar nome do blob baseado no timestamp e ID
+            string blobName = $"{flow.Timestamp:yyyyMMdd}_{flow.Id}.e";
+            
+            // Serializar e salvar o fluxo
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            var blobClient = containerClient.GetBlobClient(blobName);
+            
+            string jsonContent = JsonSerializer.Serialize(flow);
+            await blobClient.UploadAsync(
+                new BinaryData(jsonContent),
+                overwrite: true,
+                cancellationToken: cancellationToken
+            );
+            
+            // Preparar texto para indexação semântica
+            string text = $"{flow.Name}. {flow.Summary}";
+            string categoriesText = string.Join(", ", flow.Categories);
+            if (!string.IsNullOrEmpty(categoriesText))
+            {
+                text += $" Categorias: {categoriesText}";
+            }
+            
+            // Adicionar ao índice semântico
+            await _memory.SaveInformationAsync(
+                collection: MemoryCollection,
+                id: flow.Id,
+                text: text,
+                description: $"Fluxo: {flow.Name}, Nós: {flow.Nodes.Count}, Arestas: {flow.Edges.Count}",
+                additionalMetadata: blobName,
+                cancellationToken: cancellationToken
+            );
+            
+            _logger.LogInformation("Fluxo euleriano salvo: {Id}", flow.Id);
+            
+            return flow.Id;
+        }
+        
+        /// <summary>
+        /// Obtém fluxos eulerianos dentro de uma janela de tempo específica
+        /// </summary>
+        public async Task<IEnumerable<EulerianFlow>> GetFlowsInTimeRangeAsync(
+            DateTime startTime, 
+            DateTime endTime, 
+            int maxFlows = 100,
+            CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            
+            var results = new List<EulerianFlow>();
+            
+            await foreach (var blob in containerClient.GetBlobsAsync(cancellationToken: cancellationToken))
+            {
+                // Verificar se atingimos o máximo de fluxos
+                if (results.Count >= maxFlows)
+                    break;
+                
+                var blobClient = containerClient.GetBlobClient(blob.Name);
+                var content = await blobClient.DownloadContentAsync(cancellationToken);
+                var jsonContent = content.Value.Content.ToString();
+                
+                if (!string.IsNullOrEmpty(jsonContent))
+                {
+                    try
+                    {
+                        var flow = JsonSerializer.Deserialize<EulerianFlow>(jsonContent);
+                        if (flow != null && 
+                            flow.Timestamp >= startTime && 
+                            flow.Timestamp <= endTime)
+                        {
+                            results.Add(flow);
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        _logger.LogError(ex, "Erro ao deserializar fluxo euleriano: {BlobName}", blob.Name);
+                    }
+                }
+            }
+            
+            return results.OrderByDescending(f => f.Timestamp);
+        }
+        
+        /// <summary>
+        /// Obtém um fluxo euleriano específico pelo ID
+        /// </summary>
+        public async Task<EulerianFlow?> GetFlowByIdAsync(string flowId, CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            
+            // Buscar no índice semântico para encontrar o caminho do blob
+            var memoryEntry = await _memory.GetAsync(
+                collection: MemoryCollection,
+                key: flowId,
+                withEmbedding: false,
+                cancellationToken: cancellationToken
+            );
+            
+            if (memoryEntry != null && !string.IsNullOrEmpty(memoryEntry.Metadata.AdditionalMetadata))
+            {
+                string blobPath = memoryEntry.Metadata.AdditionalMetadata;
+                var blobClient = containerClient.GetBlobClient(blobPath);
+                
+                try
+                {
+                    var content = await blobClient.DownloadContentAsync(cancellationToken);
+                    var jsonContent = content.Value.Content.ToString();
+                    
+                    if (!string.IsNullOrEmpty(jsonContent))
+                    {
+                        return JsonSerializer.Deserialize<EulerianFlow>(jsonContent);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Erro ao recuperar fluxo euleriano: {BlobPath}", blobPath);
+                }
+            }
+            else
+            {
+                // Fallback: buscar em todos os blobs (menos eficiente)
+                _logger.LogWarning("Não foi possível encontrar fluxo euleriano {Id} no índice semântico, fazendo busca completa", flowId);
+                
+                await foreach (var blob in containerClient.GetBlobsAsync(cancellationToken: cancellationToken))
+                {
+                    var blobClient = containerClient.GetBlobClient(blob.Name);
+                    var content = await blobClient.DownloadContentAsync(cancellationToken);
+                    var jsonContent = content.Value.Content.ToString();
+                    
+                    if (!string.IsNullOrEmpty(jsonContent))
+                    {
+                        try
+                        {
+                            var flow = JsonSerializer.Deserialize<EulerianFlow>(jsonContent);
+                            if (flow != null && flow.Id == flowId)
+                            {
+                                return flow;
+                            }
+                        }
+                        catch (JsonException ex)
+                        {
+                            _logger.LogError(ex, "Erro ao deserializar fluxo euleriano: {BlobName}", blob.Name);
+                        }
+                    }
+                }
+            }
+            
+            return null;
+        }
+        
+        /// <summary>
+        /// Busca fluxos eulerianos baseado em uma consulta textual
+        /// </summary>
+        public async Task<IEnumerable<EulerianFlow>> SearchFlowsAsync(
+            string searchQuery, 
+            int maxResults = 10,
+            CancellationToken cancellationToken = default)
+        {
+            // Usar busca semântica para encontrar fluxos relacionados à consulta
+            var searchResults = await _memory.SearchAsync(
+                collection: MemoryCollection,
+                query: searchQuery,
+                limit: maxResults,
+                minRelevanceScore: 0.5,
+                cancellationToken: cancellationToken
+            );
+            
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            var results = new List<EulerianFlow>();
+            
+            foreach (var result in searchResults)
+            {
+                string blobPath = result.Metadata.AdditionalMetadata;
+                
+                if (!string.IsNullOrEmpty(blobPath))
+                {
+                    try
+                    {
+                        var blobClient = containerClient.GetBlobClient(blobPath);
+                        var content = await blobClient.DownloadContentAsync(cancellationToken);
+                        var jsonContent = content.Value.Content.ToString();
+                        
+                        if (!string.IsNullOrEmpty(jsonContent))
+                        {
+                            var flow = JsonSerializer.Deserialize<EulerianFlow>(jsonContent);
+                            if (flow != null)
+                            {
+                                results.Add(flow);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Erro ao recuperar fluxo euleriano: {BlobPath}", blobPath);
+                    }
+                }
+            }
+            
+            return results;
+        }
+    }
+}

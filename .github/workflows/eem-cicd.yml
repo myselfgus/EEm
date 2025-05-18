@@ -1,0 +1,86 @@
+name: ??m CI/CD Workflow
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy to Azure'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  AZURE_WEBAPP_NAME: 'eem-mcp-server'
+  AZURE_WEBAPP_PACKAGE_PATH: './publish'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Test
+      run: dotnet test --no-build --configuration Release --verbosity normal
+    
+    - name: Publish
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true'
+      run: dotnet publish -c Release -o ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+    
+    - name: Upload artifact
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true'
+      uses: actions/upload-artifact@v3
+      with:
+        name: eem-app
+        path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+        retention-days: 1
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v3
+      with:
+        name: eem-app
+        path: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+    
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+    
+    - name: Post-deployment health check
+      run: |
+        echo "Waiting for deployment to complete..."
+        sleep 30
+        response=$(curl -s -o /dev/null -w "%{http_code}" https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/health)
+        if [ "$response" = "200" ]; then
+          echo "Health check passed! Status code: $response"
+        else
+          echo "Health check failed! Status code: $response"
+          exit 1
+        fi

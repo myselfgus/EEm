@@ -1,0 +1,198 @@
+using EemCore.Models;
+using EemCore.Services.Resilient;
+using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel.Memory;
+using System.Text.Json;
+
+namespace EemCore.Data.Repositories
+{
+    /// <summary>
+    /// Implementação de repositório para relações interpretadas
+    /// </summary>
+    public class RelationRepository : BaseBlobRepository, IRelationRepository
+    {
+        private const string ContainerName = "ire-files";
+        private const string MemoryCollection = "relations";
+        
+        public RelationRepository(
+            ResilientBlobServiceClient blobServiceClient,
+            ISemanticTextMemory memory,
+            ILogger<RelationRepository> logger)
+            : base(blobServiceClient, memory, logger)
+        {
+        }
+        
+        /// <summary>
+        /// Salva um novo evento de relação no armazenamento
+        /// </summary>
+        public async Task<string> SaveRelationEventAsync(InterpretedRelationEvent relationEvent, CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            
+            // Gerar ID único para o evento se não definido
+            if (string.IsNullOrEmpty(relationEvent.Id))
+            {
+                relationEvent.Id = Guid.NewGuid().ToString();
+            }
+            
+            // Criar nome do blob baseado no tipo de relação e timestamp
+            string typeSegment = NormalizeBlobName(relationEvent.RelationType);
+            string blobName = $"{typeSegment}/{DateTime.UtcNow:yyyyMMddHHmmss}_{relationEvent.Id}.ire";
+            
+            // Serializar e salvar o evento
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            var blobClient = containerClient.GetBlobClient(blobName);
+            
+            string jsonContent = JsonSerializer.Serialize(relationEvent);
+            await blobClient.UploadAsync(
+                new BinaryData(jsonContent),
+                overwrite: true,
+                cancellationToken: cancellationToken
+            );
+            
+            // Adicionar a eventos para busca semântica
+            await _memory.SaveInformationAsync(
+                collection: MemoryCollection,
+                id: relationEvent.Id,
+                text: relationEvent.Description,
+                description: $"Relação: {relationEvent.RelationType}, Força: {relationEvent.RelationStrength:P0}",
+                additionalMetadata: blobName,
+                cancellationToken: cancellationToken
+            );
+            
+            _logger.LogInformation("Evento de relação salvo: {Id}", relationEvent.Id);
+            
+            return relationEvent.Id;
+        }
+        
+        /// <summary>
+        /// Obtém relações para eventos de atividade específicos
+        /// </summary>
+        public async Task<IEnumerable<InterpretedRelationEvent>> GetRelationsForEventsAsync(
+            IEnumerable<string> activityEventIds, CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            var results = new List<InterpretedRelationEvent>();
+            var eventIdSet = activityEventIds.ToHashSet();
+            
+            await foreach (var blob in containerClient.GetBlobsAsync(cancellationToken: cancellationToken))
+            {
+                var blobClient = containerClient.GetBlobClient(blob.Name);
+                var content = await blobClient.DownloadContentAsync(cancellationToken);
+                var jsonContent = content.Value.Content.ToString();
+                
+                if (!string.IsNullOrEmpty(jsonContent))
+                {
+                    try
+                    {
+                        var relationEvent = JsonSerializer.Deserialize<InterpretedRelationEvent>(jsonContent);
+                        if (relationEvent != null && relationEvent.RelatedEventIds.Any(id => eventIdSet.Contains(id)))
+                        {
+                            results.Add(relationEvent);
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        _logger.LogError(ex, "Erro ao deserializar evento de relação: {BlobName}", blob.Name);
+                    }
+                }
+            }
+            
+            return results.OrderByDescending(e => e.Timestamp);
+        }
+        
+        /// <summary>
+        /// Obtém relações dentro de uma janela de tempo específica
+        /// </summary>
+        public async Task<IEnumerable<InterpretedRelationEvent>> GetRelationsInTimeRangeAsync(
+            DateTime startTime, DateTime endTime, int maxRelations = 1000, CancellationToken cancellationToken = default)
+        {
+            await EnsureContainerExistsAsync(ContainerName, cancellationToken);
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            
+            var results = new List<InterpretedRelationEvent>();
+            
+            await foreach (var blob in containerClient.GetBlobsAsync(cancellationToken: cancellationToken))
+            {
+                // Verificar se atingimos o máximo de relações
+                if (results.Count >= maxRelations)
+                    break;
+                
+                var blobClient = containerClient.GetBlobClient(blob.Name);
+                var content = await blobClient.DownloadContentAsync(cancellationToken);
+                var jsonContent = content.Value.Content.ToString();
+                
+                if (!string.IsNullOrEmpty(jsonContent))
+                {
+                    try
+                    {
+                        var relationEvent = JsonSerializer.Deserialize<InterpretedRelationEvent>(jsonContent);
+                        if (relationEvent != null && 
+                            relationEvent.Timestamp >= startTime && 
+                            relationEvent.Timestamp <= endTime)
+                        {
+                            results.Add(relationEvent);
+                        }
+                    }
+                    catch (JsonException ex)
+                    {
+                        _logger.LogError(ex, "Erro ao deserializar evento de relação: {BlobName}", blob.Name);
+                    }
+                }
+            }
+            
+            return results.OrderByDescending(e => e.Timestamp);
+        }
+        
+        /// <summary>
+        /// Busca relações baseado em uma consulta textual
+        /// </summary>
+        public async Task<IEnumerable<InterpretedRelationEvent>> SearchRelationsAsync(
+            string searchQuery, int maxResults = 10, CancellationToken cancellationToken = default)
+        {
+            // Usar busca semântica para encontrar relações relacionadas
+            var searchResults = await _memory.SearchAsync(
+                collection: MemoryCollection,
+                query: searchQuery,
+                limit: maxResults,
+                minRelevanceScore: 0.5,
+                cancellationToken: cancellationToken
+            );
+            
+            var containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+            var results = new List<InterpretedRelationEvent>();
+            
+            foreach (var result in searchResults)
+            {
+                string blobPath = result.Metadata.AdditionalMetadata;
+                
+                if (!string.IsNullOrEmpty(blobPath))
+                {
+                    try
+                    {
+                        var blobClient = containerClient.GetBlobClient(blobPath);
+                        var content = await blobClient.DownloadContentAsync(cancellationToken);
+                        var jsonContent = content.Value.Content.ToString();
+                        
+                        if (!string.IsNullOrEmpty(jsonContent))
+                        {
+                            var relationEvent = JsonSerializer.Deserialize<InterpretedRelationEvent>(jsonContent);
+                            if (relationEvent != null)
+                            {
+                                results.Add(relationEvent);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Erro ao recuperar evento de relação: {BlobPath}", blobPath);
+                    }
+                }
+            }
+            
+            return results;
+        }
+    }
+}

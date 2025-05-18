@@ -1,0 +1,343 @@
+﻿using EemCore.Data.Repositories;
+using EemCore.Models;
+using EemCore.Services.Resilient;
+using Microsoft.Extensions.Logging;
+using Microsoft.SemanticKernel.Memory;
+using Moq;
+using System.Text.Json;
+using Xunit;
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure;
+using Azure.Core;
+
+namespace EemCore.Tests.Repositories
+{
+    public class ScriptRepositoryTests
+    {
+        private readonly Mock<ResilientBlobServiceClient> _mockBlobServiceClient;
+        private readonly Mock<ISemanticTextMemory> _mockSemanticMemory;
+        private readonly Mock<ILogger<ScriptRepository>> _mockLogger;
+        private readonly ScriptRepository _repository;
+
+        private readonly Mock<BlobContainerClient> _mockContainerClient;
+        private readonly Mock<BlobClient> _mockBlobClient;
+
+        public ScriptRepositoryTests()
+        {
+            _mockBlobServiceClient = new Mock<ResilientBlobServiceClient>(null, null);
+            _mockSemanticMemory = new Mock<ISemanticTextMemory>();
+            _mockLogger = new Mock<ILogger<ScriptRepository>>();
+            
+            _mockContainerClient = new Mock<BlobContainerClient>();
+            _mockBlobClient = new Mock<BlobClient>();
+            
+            // Setup GetBlobContainerClient to return a mock container client
+            _mockBlobServiceClient
+                .Setup(x => x.GetBlobContainerClient(It.IsAny<string>()))
+                .Returns(_mockContainerClient.Object);
+                
+            // Setup CreateBlobContainerAsync to return the mock container client
+            _mockBlobServiceClient
+                .Setup(x => x.CreateBlobContainerAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(_mockContainerClient.Object);
+                
+            // Setup container client to return mock blob client
+            _mockContainerClient
+                .Setup(x => x.GetBlobClient(It.IsAny<string>()))
+                .Returns(_mockBlobClient.Object);
+            
+            _repository = new ScriptRepository(
+                _mockBlobServiceClient.Object,
+                _mockSemanticMemory.Object,
+                _mockLogger.Object);
+        }
+        
+        [Fact]
+        public async Task SaveScriptAsync_ValidInput_ReturnsSavedScriptId()
+        {
+            // Arrange
+            var scriptInfo = new ScriptInfo
+            {
+                Name = "TestScript",
+                Description = "A test script",
+                Tags = new List<string> { "test", "unit" }
+            };
+            
+            var content = "console.log('Test script content');";
+            
+            _mockBlobClient
+                .Setup(x => x.UploadAsync(
+                    It.IsAny<BinaryData>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Response.FromValue(new BlobContentInfo(), Mock.Of<Response>()));
+                
+            _mockSemanticMemory
+                .Setup(x => x.SaveInformationAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+                
+            // Act
+            var result = await _repository.SaveScriptAsync(scriptInfo, content);
+            
+            // Assert
+            Assert.NotNull(result);
+            Assert.NotEmpty(result);
+            Assert.Equal(scriptInfo.Id, result);
+            
+            // Verify container created
+            _mockBlobServiceClient.Verify(
+                x => x.CreateBlobContainerAsync("scripts", It.IsAny<CancellationToken>()),
+                Times.Once);
+                
+            // Verify metadata blob saved
+            _mockBlobClient.Verify(
+                x => x.UploadAsync(
+                    It.IsAny<BinaryData>(),
+                    true,
+                    It.IsAny<CancellationToken>()),
+                Times.Exactly(2)); // Once for metadata, once for content
+                
+            // Verify semantic memory updated
+            _mockSemanticMemory.Verify(
+                x => x.SaveInformationAsync(
+                    "scripts",
+                    scriptInfo.Id,
+                    It.IsAny<string>(),
+                    It.IsAny<string>(),
+                    scriptInfo.Id,
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        
+        [Fact]
+        public async Task GetScriptByNameAsync_ExistingScript_ReturnsScriptInfo()
+        {
+            // Arrange
+            var scriptName = "TestScript";
+            var scriptId = Guid.NewGuid().ToString();
+            
+            var scriptInfo = new ScriptInfo
+            {
+                Id = scriptId,
+                Name = scriptName,
+                Description = "A test script"
+            };
+            
+            var content = "console.log('Test script content');";
+            
+            // Setup semantic search to return script
+            _mockSemanticMemory
+                .Setup(x => x.SearchAsync(
+                    "scripts",
+                    scriptName,
+                    It.IsAny<int>(),
+                    It.IsAny<double>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new[]
+                {
+                    new MemoryQueryResult
+                    {
+                        Metadata = new MemoryRecordMetadata
+                        {
+                            Id = scriptId,
+                            Description = $"Script: {scriptName}, Ativo: True",
+                            AdditionalMetadata = scriptId
+                        },
+                        Relevance = 0.9
+                    }
+                });
+                
+            // Setup blob content download for metadata and content
+            var metadataResponse = BinaryData.FromString(JsonSerializer.Serialize(scriptInfo));
+            var contentResponse = BinaryData.FromString(content);
+            
+            _mockBlobClient
+                .SetupSequence(x => x.DownloadContentAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Response.FromValue(new BlobDownloadResult(metadataResponse), Mock.Of<Response>()))
+                .ReturnsAsync(Response.FromValue(new BlobDownloadResult(contentResponse), Mock.Of<Response>()));
+                
+            // Act
+            var result = await _repository.GetScriptByNameAsync(scriptName);
+            
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(scriptInfo.Id, result.Value.Info.Id);
+            Assert.Equal(scriptInfo.Name, result.Value.Info.Name);
+            Assert.Equal(content, result.Value.Content);
+            
+            // Verify container created
+            _mockBlobServiceClient.Verify(
+                x => x.CreateBlobContainerAsync("scripts", It.IsAny<CancellationToken>()),
+                Times.Once);
+                
+            // Verify semantic search was called
+            _mockSemanticMemory.Verify(
+                x => x.SearchAsync(
+                    "scripts",
+                    scriptName,
+                    It.IsAny<int>(),
+                    It.IsAny<double>(),
+                    It.IsAny<bool>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        
+        [Fact]
+        public async Task DeleteScriptAsync_ExistingScript_ReturnsTrue()
+        {
+            // Arrange
+            var scriptId = Guid.NewGuid().ToString();
+            
+            // Setup blob delete to succeed
+            _mockBlobClient
+                .Setup(x => x.DeleteIfExistsAsync(
+                    It.IsAny<DeleteSnapshotsOption>(),
+                    It.IsAny<BlobRequestConditions>(),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Response.FromValue(true, Mock.Of<Response>()));
+                
+            // Setup memory delete to succeed
+            _mockSemanticMemory
+                .Setup(x => x.RemoveAsync(
+                    "scripts",
+                    scriptId,
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(true);
+                
+            // Act
+            var result = await _repository.DeleteScriptAsync(scriptId);
+            
+            // Assert
+            Assert.True(result);
+            
+            // Verify container created
+            _mockBlobServiceClient.Verify(
+                x => x.CreateBlobContainerAsync("scripts", It.IsAny<CancellationToken>()),
+                Times.Once);
+                
+            // Verify blobs deleted
+            _mockBlobClient.Verify(
+                x => x.DeleteIfExistsAsync(
+                    It.IsAny<DeleteSnapshotsOption>(),
+                    It.IsAny<BlobRequestConditions>(),
+                    It.IsAny<CancellationToken>()),
+                Times.Exactly(2)); // Once for metadata, once for content
+                
+            // Verify semantic memory entry removed
+            _mockSemanticMemory.Verify(
+                x => x.RemoveAsync(
+                    "scripts",
+                    scriptId,
+                    It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        
+        [Fact]
+        public async Task ListScriptsAsync_ReturnsAllScripts()
+        {
+            // Arrange
+            var scripts = new List<ScriptInfo>
+            {
+                new ScriptInfo { Id = "script1", Name = "Script 1" },
+                new ScriptInfo { Id = "script2", Name = "Script 2" }
+            };
+            
+            // Setup blob listing
+            var mockPageable = new Mock<AsyncPageable<BlobItem>>();
+            var blobItems = new List<BlobItem>
+            {
+                BlobsModelFactory.BlobItem(name: "script1.meta"),
+                BlobsModelFactory.BlobItem(name: "script1.genai"),
+                BlobsModelFactory.BlobItem(name: "script2.meta"),
+                BlobsModelFactory.BlobItem(name: "script2.genai")
+            };
+            
+            _mockContainerClient
+                .Setup(x => x.GetBlobsAsync(
+                    It.IsAny<BlobTraits>(), 
+                    It.IsAny<BlobStates>(), 
+                    It.IsAny<string>(), 
+                    It.IsAny<CancellationToken>()))
+                .Returns(GetAsyncPageable(blobItems));
+                
+            // Setup blob content download for metadata files
+            _mockBlobClient
+                .SetupSequence(x => x.DownloadContentAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Response.FromValue(
+                    new BlobDownloadResult(BinaryData.FromString(JsonSerializer.Serialize(scripts[0]))), 
+                    Mock.Of<Response>()))
+                .ReturnsAsync(Response.FromValue(
+                    new BlobDownloadResult(BinaryData.FromString(JsonSerializer.Serialize(scripts[1]))), 
+                    Mock.Of<Response>()));
+                
+            // Act
+            var result = await _repository.ListScriptsAsync();
+            
+            // Assert
+            var resultList = result.ToList();
+            Assert.Equal(2, resultList.Count);
+            Assert.Contains(resultList, s => s.Id == "script1");
+            Assert.Contains(resultList, s => s.Id == "script2");
+            
+            // Verify container created
+            _mockBlobServiceClient.Verify(
+                x => x.CreateBlobContainerAsync("scripts", It.IsAny<CancellationToken>()),
+                Times.Once);
+        }
+        
+        // Helper method to create an AsyncPageable from a list of items
+        private static AsyncPageable<T> GetAsyncPageable<T>(IEnumerable<T> items)
+        {
+            var asyncPageable = new Mock<AsyncPageable<T>>();
+            
+            asyncPageable
+                .Setup(x => x.GetAsyncEnumerator(It.IsAny<CancellationToken>()))
+                .Returns(new TestAsyncEnumerator<T>(items.GetEnumerator()));
+            
+            return asyncPageable.Object;
+        }
+        
+        // Test implementation of IAsyncEnumerator
+        private class TestAsyncEnumerator<T> : IAsyncEnumerator<T>
+        {
+            private readonly IEnumerator<T> _enumerator;
+            
+            public TestAsyncEnumerator(IEnumerator<T> enumerator)
+            {
+                _enumerator = enumerator;
+            }
+            
+            public T Current => _enumerator.Current;
+            
+            public ValueTask<bool> MoveNextAsync()
+            {
+                return new ValueTask<bool>(_enumerator.MoveNext());
+            }
+            
+            public ValueTask DisposeAsync()
+            {
+                _enumerator.Dispose();
+                return new ValueTask();
+            }
+        }
+    }
+    
+    // Helper class for BlobDownloadResult
+    public class BlobDownloadResult
+    {
+        public BinaryData Content { get; }
+        
+        public BlobDownloadResult(BinaryData content)
+        {
+            Content = content;
+        }
+    }
+}

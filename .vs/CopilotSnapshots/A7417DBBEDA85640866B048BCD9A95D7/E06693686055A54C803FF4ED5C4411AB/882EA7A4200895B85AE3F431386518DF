@@ -1,0 +1,88 @@
+﻿using EemCore.Agents;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace EemServer.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize(Policy = "EemApiScope")]
+    public class EulerianController : ControllerBase
+    {
+        private readonly EulerianAgent _eulerianAgent;
+        private readonly ILogger<EulerianController> _logger;
+
+        public EulerianController(
+            EulerianAgent eulerianAgent,
+            ILogger<EulerianController> logger)
+        {
+            _eulerianAgent = eulerianAgent;
+            _logger = logger;
+        }
+
+        [HttpPost("process")]
+        public async Task<IActionResult> ProcessEulerianFlow(ProcessFlowRequest request)
+        {
+            try
+            {
+                string result = await _eulerianAgent.ProcessEulerianFlowAsync(
+                    request.SessionId,
+                    request.FlowName,
+                    request.TimeWindowHours);
+                    
+                return Ok(new { success = true, message = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao processar fluxo euleriano");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpGet("status/{flowId}")]
+        public async Task<IActionResult> GetFlowStatus(string flowId)
+        {
+            try
+            {
+                string status = await _eulerianAgent.GetEulerianFlowStatusAsync(flowId);
+                return Ok(new { success = true, status });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao obter status do fluxo euleriano");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+
+        [HttpPost("combine")]
+        public async Task<IActionResult> CombineFlows(CombineFlowsRequest request)
+        {
+            try
+            {
+                string result = await _eulerianAgent.CombineEulerianFlowsAsync(
+                    request.FlowIds,
+                    request.NewFlowName);
+                    
+                return Ok(new { success = true, message = result });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao combinar fluxos eulerianos");
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
+    }
+
+    public class ProcessFlowRequest
+    {
+        public string SessionId { get; set; } = string.Empty;
+        public string? FlowName { get; set; }
+        public int TimeWindowHours { get; set; } = 24;
+    }
+
+    public class CombineFlowsRequest
+    {
+        public string FlowIds { get; set; } = string.Empty;
+        public string NewFlowName { get; set; } = string.Empty;
+    }
+}
