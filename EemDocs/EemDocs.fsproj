@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>  <ItemGroup>
+    <Compile Include="Introduction.fsx" />
+    <Compile Include="Architecture.fsx" />
+    <Compile Include="Components.fsx" />
+    <Compile Include="AzureIntegration.fsx" />
+    <Compile Include="MCP.fsx" />
+    <Compile Include="GenAIScriptAndDSL.fsx" />
+    <Compile Include="VisualStudioIntegration.fsx" />
+    <Compile Include="EemDocsToCSharp.fsx" />
+    <Compile Include="CodeGeneration.fsx" />
+    <Compile Include="Installation.fsx" />
+    <None Include="README.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Deedle" Version="3.0.0" />
+    <PackageReference Include="FSharp.Core" Version="8.0.101" />
+    <PackageReference Include="FSharp.Data" Version="6.3.0" />
+    <PackageReference Include="FsLab" Version="2.0.0" />
+    <PackageReference Include="XPlot.Plotly" Version="4.0.6" />
+    <PackageReference Include="dotnet-fsharplint" Version="0.21.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EemCore\EemCore.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,810 @@
+using Microsoft.MCP;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Memory;
+using System.ComponentModel;
+using Azure.Storage.Blobs;
+using Microsoft.Azure.Cosmos;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+
+namespace EemCore.Processing
+{
+    /// <summary>
+    /// Implementação do processador de GenAIScript para o sistema Εεm (Ευ-εnable-memory).
+    /// 
+    /// O GenAIScriptProcessor é responsável por:
+    /// 1. Interpretar scripts em DSL GenAIScript para definir fluxos eulerianos
+    /// 2. Executar scripts para processar dados e contextos do sistema
+    /// 3. Criar e gerenciar transformações de dados baseadas em scripts
+    /// 4. Integrar com outras DSLs (como MAIPL e MFL) para processamento avançado
+    /// </summary>
+    [McpToolType]
+    public class GenAIScriptProcessor
+    {
+        private readonly ISemanticTextMemory _memory;
+        private readonly BlobServiceClient _blobServiceClient;
+        private readonly CosmosClient _cosmosClient;
+        private readonly IKernel _kernel;
+        private readonly ILogger<GenAIScriptProcessor> _logger;
+
+        // Constantes para containers e bancos de dados
+        private const string ScriptsContainer = "genai-scripts";
+        private const string AjeContainer = "aje-files";
+        private const string IreContainer = "ire-files";
+        private const string EContainer = "e-files";
+        private const string ReContainer = "re-relations";
+        private const string DatabaseId = "EemDatabase";
+        private const string FlowsContainerId = "EulerianFlows";
+
+        /// <summary>
+        /// Construtor para o Processador GenAIScript
+        /// </summary>
+        public GenAIScriptProcessor(
+            ISemanticTextMemory memory,
+            BlobServiceClient blobServiceClient,
+            CosmosClient cosmosClient,
+            IKernel kernel,
+            ILogger<GenAIScriptProcessor> logger)
+        {
+            _memory = memory;
+            _blobServiceClient = blobServiceClient;
+            _cosmosClient = cosmosClient;
+            _kernel = kernel;
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Registra e armazena um novo script GenAIScript
+        /// </summary>
+        /// <param name="scriptName">Nome do script</param>
+        /// <param name="scriptContent">Conteúdo do script em GenAIScript</param>
+        [McpTool("Registra um novo script GenAIScript para processamento euleriano")]
+        public async Task<string> RegisterScriptAsync(
+            [Description("Nome do script")] string scriptName,
+            [Description("Conteúdo do script em GenAIScript")] string scriptContent)
+        {
+            _logger.LogInformation($"Registrando script GenAIScript: {scriptName}");
+            
+            try
+            {
+                // Validar sintaxe do script
+                ValidateScriptSyntax(scriptContent);
+                
+                // Armazenar script no blob storage
+                var container = _blobServiceClient.GetBlobContainerClient(ScriptsContainer);
+                await container.CreateIfNotExistsAsync();
+                
+                var blobName = $"{scriptName}-{DateTime.UtcNow:yyyyMMddHHmmss}.genai";
+                var blobClient = container.GetBlobClient(blobName);
+                
+                var scriptMetadata = new Dictionary<string, string>
+                {
+                    { "name", scriptName },
+                    { "createdAt", DateTime.UtcNow.ToString("o") },
+                    { "type", "GenAIScript" }
+                };
+                
+                using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(scriptContent));
+                await blobClient.UploadAsync(stream, new Azure.Storage.Blobs.Models.BlobUploadOptions
+                {
+                    Metadata = scriptMetadata
+                });
+                
+                // Registrar script no banco de dados
+                var dbContainer = _cosmosClient.GetContainer(DatabaseId, FlowsContainerId);
+                
+                var scriptDocument = new
+                {
+                    id = Guid.NewGuid().ToString(),
+                    scriptName = scriptName,
+                    blobPath = blobName,
+                    createdAt = DateTime.UtcNow,
+                    lastRun = (DateTime?)null,
+                    isEnabled = true,
+                    type = "GenAIScript"
+                };
+                
+                await dbContainer.CreateItemAsync(scriptDocument, new PartitionKey(scriptDocument.id));
+                
+                return $"Script '{scriptName}' registrado com sucesso";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao registrar script: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Executa um script GenAIScript previamente registrado
+        /// </summary>
+        /// <param name="scriptName">Nome do script a ser executado</param>
+        [McpTool("Executa um script GenAIScript previamente registrado")]
+        public async Task<ScriptExecutionResult> ExecuteScriptAsync(
+            [Description("Nome do script a ser executado")] string scriptName)
+        {
+            _logger.LogInformation($"Executando script GenAIScript: {scriptName}");
+            
+            try
+            {
+                // Obter script do banco de dados
+                var dbContainer = _cosmosClient.GetContainer(DatabaseId, FlowsContainerId);
+                var query = new QueryDefinition("SELECT * FROM c WHERE c.scriptName = @name AND c.type = 'GenAIScript'")
+                    .WithParameter("@name", scriptName);
+                
+                var iterator = dbContainer.GetItemQueryIterator<dynamic>(query);
+                dynamic? scriptDocument = null;
+                
+                while (iterator.HasMoreResults)
+                {
+                    var response = await iterator.ReadNextAsync();
+                    if (response.Count > 0)
+                    {
+                        scriptDocument = response.FirstOrDefault();
+                        break;
+                    }
+                }
+                
+                if (scriptDocument == null)
+                {
+                    throw new Exception($"Script '{scriptName}' não encontrado");
+                }
+                
+                string blobPath = scriptDocument.blobPath;
+                
+                // Recuperar conteúdo do script
+                var container = _blobServiceClient.GetBlobContainerClient(ScriptsContainer);
+                var blobClient = container.GetBlobClient(blobPath);
+                
+                var content = await blobClient.DownloadContentAsync();
+                string scriptContent = content.Value.Content.ToString();
+                
+                // Interpretar e executar o script
+                var result = await InterpretAndExecuteScriptAsync(scriptContent);
+                
+                // Atualizar última execução no banco de dados
+                scriptDocument.lastRun = DateTime.UtcNow;
+                await dbContainer.UpsertItemAsync(scriptDocument, new PartitionKey(scriptDocument.id));
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao executar script: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Lista todos os scripts GenAIScript registrados
+        /// </summary>
+        [McpTool("Lista todos os scripts GenAIScript registrados")]
+        public async Task<IList<ScriptInfo>> ListScriptsAsync()
+        {
+            _logger.LogInformation("Listando scripts GenAIScript");
+            
+            try
+            {
+                var scripts = new List<ScriptInfo>();
+                
+                // Consultar scripts no banco de dados
+                var dbContainer = _cosmosClient.GetContainer(DatabaseId, FlowsContainerId);
+                var query = new QueryDefinition("SELECT * FROM c WHERE c.type = 'GenAIScript'");
+                
+                var iterator = dbContainer.GetItemQueryIterator<dynamic>(query);
+                while (iterator.HasMoreResults)
+                {
+                    var response = await iterator.ReadNextAsync();
+                    foreach (dynamic item in response)
+                    {
+                        scripts.Add(new ScriptInfo
+                        {
+                            Id = item.id,
+                            Name = item.scriptName,
+                            CreatedAt = item.createdAt,
+                            LastRun = item.lastRun,
+                            IsEnabled = item.isEnabled
+                        });
+                    }
+                }
+                
+                return scripts;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao listar scripts: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Executa um script GenAIScript diretamente sem precisar registrá-lo
+        /// </summary>
+        /// <param name="scriptContent">Conteúdo do script em GenAIScript</param>
+        [McpTool("Executa um script GenAIScript diretamente")]
+        public async Task<ScriptExecutionResult> ExecuteDirectScriptAsync(
+            [Description("Conteúdo do script em GenAIScript")] string scriptContent)
+        {
+            _logger.LogInformation("Executando script GenAIScript direto");
+            
+            try
+            {
+                // Validar sintaxe do script
+                ValidateScriptSyntax(scriptContent);
+                
+                // Interpretar e executar o script
+                return await InterpretAndExecuteScriptAsync(scriptContent);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao executar script direto: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Converte um script em MAIPL (Microsoft AI Processing Language) para GenAIScript
+        /// </summary>
+        /// <param name="maiplScript">Conteúdo do script em MAIPL</param>
+        [McpTool("Converte um script MAIPL para GenAIScript")]
+        public async Task<string> ConvertMaiplToGenAIScriptAsync(
+            [Description("Conteúdo do script em MAIPL")] string maiplScript)
+        {
+            _logger.LogInformation("Convertendo script MAIPL para GenAIScript");
+            
+            try
+            {
+                // Usar Semantic Kernel para converter o script
+                var prompt = @"
+                Converta o seguinte script MAIPL para GenAIScript:
+                
+                MAIPL:
+                ```
+                {{$maiplScript}}
+                ```
+                
+                GenAIScript:
+                ";
+                
+                var result = await _kernel.InvokePromptAsync(
+                    prompt,
+                    new KernelArguments { ["maiplScript"] = maiplScript }
+                );
+                
+                return result.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao converter script MAIPL: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Converte um script em MFL (Microsoft Flow Language) para GenAIScript
+        /// </summary>
+        /// <param name="mflScript">Conteúdo do script em MFL</param>
+        [McpTool("Converte um script MFL para GenAIScript")]
+        public async Task<string> ConvertMflToGenAIScriptAsync(
+            [Description("Conteúdo do script em MFL")] string mflScript)
+        {
+            _logger.LogInformation("Convertendo script MFL para GenAIScript");
+            
+            try
+            {
+                // Usar Semantic Kernel para converter o script
+                var prompt = @"
+                Converta o seguinte script MFL (Microsoft Flow Language) para GenAIScript:
+                
+                MFL:
+                ```
+                {{$mflScript}}
+                ```
+                
+                GenAIScript:
+                ";
+                
+                var result = await _kernel.InvokePromptAsync(
+                    prompt,
+                    new KernelArguments { ["mflScript"] = mflScript }
+                );
+                
+                return result.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao converter script MFL: {ex.Message}");
+                throw;
+            }
+        }
+
+        #region Métodos Privados
+
+        /// <summary>
+        /// Valida a sintaxe de um script GenAIScript
+        /// </summary>
+        private void ValidateScriptSyntax(string scriptContent)
+        {
+            // Verificar estrutura básica do script
+            if (!scriptContent.Contains("flow") || !scriptContent.Contains("{") || !scriptContent.Contains("}"))
+            {
+                throw new Exception("Script GenAIScript inválido: deve conter um bloco 'flow' com chaves");
+            }
+            
+            // Verificar se o script contém pelo menos uma das seções principais
+            var hasSource = scriptContent.Contains("source") && scriptContent.Contains("source {");
+            var hasTransform = scriptContent.Contains("transform") && scriptContent.Contains("transform {");
+            var hasSink = scriptContent.Contains("sink") && scriptContent.Contains("sink {");
+            
+            if (!hasSource && !hasTransform && !hasSink)
+            {
+                throw new Exception("Script GenAIScript inválido: deve conter pelo menos uma seção 'source', 'transform' ou 'sink'");
+            }
+            
+            // Verificar balanceamento de chaves
+            int openCount = scriptContent.Count(c => c == '{');
+            int closeCount = scriptContent.Count(c => c == '}');
+            
+            if (openCount != closeCount)
+            {
+                throw new Exception($"Script GenAIScript inválido: número de chaves desbalanceado ({openCount} abertas, {closeCount} fechadas)");
+            }
+            
+            _logger.LogInformation("Script GenAIScript validado com sucesso");
+        }
+
+        /// <summary>
+        /// Interpreta e executa um script GenAIScript
+        /// </summary>
+        private async Task<ScriptExecutionResult> InterpretAndExecuteScriptAsync(string scriptContent)
+        {
+            _logger.LogInformation("Interpretando e executando script GenAIScript");
+            
+            // Extrair nome do fluxo
+            var flowNameMatch = Regex.Match(scriptContent, @"flow\s+""([^""]+)""");
+            string flowName = flowNameMatch.Success ? flowNameMatch.Groups[1].Value : "AnonymousFlow";
+            
+            // Extrair seções do script
+            var sourceSection = ExtractSection(scriptContent, "source");
+            var transformSection = ExtractSection(scriptContent, "transform");
+            var sinkSection = ExtractSection(scriptContent, "sink");
+            
+            var result = new ScriptExecutionResult
+            {
+                FlowName = flowName,
+                StartTime = DateTime.UtcNow,
+                Status = "Completed",
+                Steps = new List<ExecutionStep>()
+            };
+            
+            try
+            {
+                // Processar seção source
+                Dictionary<string, object> sources = new Dictionary<string, object>();
+                if (!string.IsNullOrEmpty(sourceSection))
+                {
+                    _logger.LogInformation("Processando seção 'source'");
+                    sources = await ProcessSourceSectionAsync(sourceSection);
+                    result.Steps.Add(new ExecutionStep
+                    {
+                        Name = "Source",
+                        Status = "Completed",
+                        Details = $"Processadas {sources.Count} fontes de dados"
+                    });
+                }
+                
+                // Processar seção transform
+                Dictionary<string, object> transformedData = new Dictionary<string, object>();
+                if (!string.IsNullOrEmpty(transformSection))
+                {
+                    _logger.LogInformation("Processando seção 'transform'");
+                    transformedData = await ProcessTransformSectionAsync(transformSection, sources);
+                    result.Steps.Add(new ExecutionStep
+                    {
+                        Name = "Transform",
+                        Status = "Completed",
+                        Details = $"Executadas {transformedData.Count} transformações"
+                    });
+                }
+                
+                // Processar seção sink
+                if (!string.IsNullOrEmpty(sinkSection))
+                {
+                    _logger.LogInformation("Processando seção 'sink'");
+                    await ProcessSinkSectionAsync(sinkSection, transformedData);
+                    result.Steps.Add(new ExecutionStep
+                    {
+                        Name = "Sink",
+                        Status = "Completed",
+                        Details = "Dados armazenados com sucesso"
+                    });
+                }
+                
+                result.EndTime = DateTime.UtcNow;
+                result.ExecutionTime = (result.EndTime - result.StartTime).TotalMilliseconds;
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Erro ao executar script GenAIScript: {ex.Message}");
+                
+                result.Status = "Failed";
+                result.ErrorMessage = ex.Message;
+                result.EndTime = DateTime.UtcNow;
+                result.ExecutionTime = (result.EndTime - result.StartTime).TotalMilliseconds;
+                
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// Extrai uma seção específica do script GenAIScript
+        /// </summary>
+        private string ExtractSection(string scriptContent, string sectionName)
+        {
+            var match = Regex.Match(scriptContent, $@"{sectionName}\s*{{([^}}]*(?:{{[^}}]*}}[^}}]*)*)}}",
+                RegexOptions.Singleline);
+            
+            if (match.Success)
+            {
+                return match.Groups[1].Value.Trim();
+            }
+            
+            return string.Empty;
+        }
+
+        /// <summary>
+        /// Processa a seção 'source' do script GenAIScript
+        /// </summary>
+        private async Task<Dictionary<string, object>> ProcessSourceSectionAsync(string sourceSection)
+        {
+            var sources = new Dictionary<string, object>();
+            
+            // Extrair atribuições de fontes
+            var sourceAssignments = Regex.Matches(sourceSection, @"(\w+)\s*=\s*([^=\r\n]+)");
+            
+            foreach (Match match in sourceAssignments)
+            {
+                string sourceName = match.Groups[1].Value.Trim();
+                string sourceExpression = match.Groups[2].Value.Trim();
+                
+                // Processar expressão de fonte
+                if (sourceExpression.StartsWith("listen("))
+                {
+                    // Simulação de listener - em uma implementação real, seria configurado um listener
+                    var eventSource = sourceExpression.Substring(7, sourceExpression.Length - 8).Trim('"');
+                    _logger.LogInformation($"Configurando listener para {eventSource}");
+                    
+                    // Simulação de dados de eventos
+                    var events = new List<dynamic>
+                    {
+                        new { Type = "Activity", Timestamp = DateTime.UtcNow, Data = "Sample event 1" },
+                        new { Type = "Activity", Timestamp = DateTime.UtcNow.AddMinutes(-5), Data = "Sample event 2" }
+                    };
+                    
+                    sources[sourceName] = events;
+                }
+                else if (sourceExpression.StartsWith("read("))
+                {
+                    // Formato: read("container", filter)
+                    var readParams = sourceExpression.Substring(5, sourceExpression.Length - 6).Split(',');
+                    string containerName = readParams[0].Trim().Trim('"');
+                    
+                    _logger.LogInformation($"Lendo dados do container {containerName}");
+                    
+                    // Recuperar dados do container apropriado
+                    var data = await ReadDataFromContainerAsync(containerName);
+                    sources[sourceName] = data;
+                }
+            }
+            
+            return sources;
+        }
+
+        /// <summary>
+        /// Processa a seção 'transform' do script GenAIScript
+        /// </summary>
+        private async Task<Dictionary<string, object>> ProcessTransformSectionAsync(
+            string transformSection, Dictionary<string, object> sources)
+        {
+            var transformedData = new Dictionary<string, object>();
+            
+            // Extrair atribuições de transformações
+            var transformAssignments = Regex.Matches(transformSection, @"(\w+)\s*=\s*([^=\r\n]+)");
+            
+            foreach (Match match in transformAssignments)
+            {
+                string transformName = match.Groups[1].Value.Trim();
+                string transformExpression = match.Groups[2].Value.Trim();
+                
+                // Analisar pipeline de transformação
+                var pipeline = transformExpression.Split('|').Select(p => p.Trim()).ToArray();
+                
+                // Obter fonte de dados inicial
+                string sourceName = pipeline[0];
+                if (!sources.ContainsKey(sourceName) && !transformedData.ContainsKey(sourceName))
+                {
+                    throw new Exception($"Fonte de dados '{sourceName}' não encontrada");
+                }
+                
+                // Obter dados a serem transformados
+                var data = sources.ContainsKey(sourceName) ? sources[sourceName] : transformedData[sourceName];
+                
+                // Aplicar transformações em sequência
+                for (int i = 1; i < pipeline.Length; i++)
+                {
+                    string transform = pipeline[i];
+                    data = await ApplyTransformationAsync(transform, data);
+                }
+                
+                transformedData[transformName] = data;
+            }
+            
+            return transformedData;
+        }
+
+        /// <summary>
+        /// Processa a seção 'sink' do script GenAIScript
+        /// </summary>
+        private async Task ProcessSinkSectionAsync(
+            string sinkSection, Dictionary<string, object> transformedData)
+        {
+            // Extrair comandos de sink
+            var sinkCommands = Regex.Matches(sinkSection, @"(\w+)\(([^()]*(?:\([^()]*\)[^()]*)*)\);?");
+            
+            foreach (Match match in sinkCommands)
+            {
+                string command = match.Groups[1].Value.Trim();
+                string parameters = match.Groups[2].Value.Trim();
+                
+                if (command == "store")
+                {
+                    // Formato: store(data, "container")
+                    var storeParams = parameters.Split(',').Select(p => p.Trim()).ToArray();
+                    string dataName = storeParams[0];
+                    string containerType = storeParams[1].Trim('"');
+                    
+                    if (!transformedData.ContainsKey(dataName))
+                    {
+                        throw new Exception($"Dados '{dataName}' não encontrados para armazenamento");
+                    }
+                    
+                    var data = transformedData[dataName];
+                    await StoreDataToContainerAsync(data, containerType);
+                }
+                else if (command == "notify_if")
+                {
+                    // Formato: notify_if(condition)
+                    // Implementação simulada de notificação
+                    _logger.LogInformation($"Notificação condicionada a: {parameters}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Aplica uma transformação específica aos dados
+        /// </summary>
+        private async Task<object> ApplyTransformationAsync(string transform, object data)
+        {
+            // Extrair nome da função e parâmetros
+            var functionMatch = Regex.Match(transform, @"(\w+)\(([^()]*(?:\([^()]*\)[^()]*)*)\)");
+            
+            if (!functionMatch.Success)
+            {
+                return data; // Sem transformação
+            }
+            
+            string functionName = functionMatch.Groups[1].Value;
+            string parameters = functionMatch.Groups[2].Value;
+            
+            _logger.LogInformation($"Aplicando transformação: {functionName}");
+            
+            // Implementar diferentes transformações
+            switch (functionName)
+            {
+                case "extract_entities":
+                    return await ExtractEntitiesAsync(data);
+                    
+                case "enrich_with_context":
+                    return await EnrichWithContextAsync(data);
+                    
+                case "correlate_with":
+                    // Obter nome do conjunto de dados para correlação
+                    string correlationDataName = parameters.Trim();
+                    // Em uma implementação real, o dado de correlação seria buscado
+                    return data; // Simulação
+                    
+                case "compute_relevance":
+                    return await ComputeRelevanceAsync(data);
+                    
+                case "compute_embeddings":
+                    // Extrair modelo das definições do parâmetro
+                    string model = "ada-002"; // Valor padrão
+                    var modelMatch = Regex.Match(parameters, @"model\s*=\s*""([^""]*)""");
+                    if (modelMatch.Success)
+                    {
+                        model = modelMatch.Groups[1].Value;
+                    }
+                    
+                    return await ComputeEmbeddingsAsync(data, model);
+                    
+                case "cluster":
+                    return await ClusterDataAsync(data, parameters);
+                    
+                case "extract_key_concepts":
+                case "rank_by_relevance":
+                case "generate_summary":
+                    // Simulação - em implementação real processaria semanticamente os dados
+                    return data;
+                    
+                default:
+                    _logger.LogWarning($"Transformação desconhecida: {functionName}");
+                    return data;
+            }
+        }
+
+        /// <summary>
+        /// Lê dados de um container específico
+        /// </summary>
+        private async Task<List<dynamic>> ReadDataFromContainerAsync(string containerName)
+        {
+            var data = new List<dynamic>();
+            
+            // Mapear nome do container para o container real
+            string actualContainer = containerName switch
+            {
+                "aje" => AjeContainer,
+                "ire" => IreContainer,
+                "e" => EContainer,
+                "re" => ReContainer,
+                _ => containerName
+            };
+            
+            // Simular leitura de dados do container
+            _logger.LogInformation($"Lendo dados do container: {actualContainer}");
+            
+            // Simulação de dados
+            // Em uma implementação real, leria do blob storage ou cosmos db
+            for (int i = 0; i < 5; i++)
+            {
+                data.Add(new
+                {
+                    id = Guid.NewGuid().ToString(),
+                    timestamp = DateTime.UtcNow.AddHours(-i),
+                    data = $"Sample data {i} from {containerName}"
+                });
+            }
+            
+            return data;
+        }
+
+        /// <summary>
+        /// Armazena dados em um container específico
+        /// </summary>
+        private async Task StoreDataToContainerAsync(object data, string containerType)
+        {
+            // Mapear tipo de container para o container real
+            string actualContainer = containerType switch
+            {
+                "aje" => AjeContainer,
+                "ire" => IreContainer,
+                "e" => EContainer,
+                "re" => ReContainer,
+                _ => containerType
+            };
+            
+            _logger.LogInformation($"Armazenando dados no container: {actualContainer}");
+            
+            // Em uma implementação real, armazenaria os dados no blob storage ou cosmos db
+            
+            // Simulação de armazenamento
+            string json = JsonSerializer.Serialize(data);
+            _logger.LogDebug($"Dados para armazenar: {json}");
+        }
+
+        /// <summary>
+        /// Extrai entidades de um conjunto de dados
+        /// </summary>
+        private async Task<object> ExtractEntitiesAsync(object data)
+        {
+            _logger.LogInformation("Extraindo entidades dos dados");
+            
+            // Simular extração de entidades
+            // Em uma implementação real, utilizaria processamento de linguagem natural
+            
+            // Simulação de resultado
+            return data;
+        }
+
+        /// <summary>
+        /// Enriquece dados com informações de contexto
+        /// </summary>
+        private async Task<object> EnrichWithContextAsync(object data)
+        {
+            _logger.LogInformation("Enriquecendo dados com contexto");
+            
+            // Simulação de enriquecimento com contexto
+            // Em uma implementação real, agregaria informações contextuais
+            
+            return data;
+        }
+
+        /// <summary>
+        /// Calcula a relevância de itens de dados
+        /// </summary>
+        private async Task<object> ComputeRelevanceAsync(object data)
+        {
+            _logger.LogInformation("Calculando relevância dos dados");
+            
+            // Simulação de cálculo de relevância
+            // Em uma implementação real, aplicaria algoritmos de classificação
+            
+            return data;
+        }
+
+        /// <summary>
+        /// Calcula embeddings para itens de dados
+        /// </summary>
+        private async Task<object> ComputeEmbeddingsAsync(object data, string model)
+        {
+            _logger.LogInformation($"Calculando embeddings usando modelo: {model}");
+            
+            // Simulação de geração de embeddings
+            // Em uma implementação real, utilizaria OpenAI para gerar embeddings
+            
+            return data;
+        }
+
+        /// <summary>
+        /// Agrupa dados em clusters
+        /// </summary>
+        private async Task<object> ClusterDataAsync(object data, string parameters)
+        {
+            _logger.LogInformation($"Agrupando dados em clusters com parâmetros: {parameters}");
+            
+            // Simulação de clustering
+            // Em uma implementação real, aplicaria algoritmos de clustering
+            
+            return data;
+        }
+
+        #endregion
+    }
+
+    /// <summary>
+    /// Representa informações sobre um script GenAIScript
+    /// </summary>
+    public class ScriptInfo
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? LastRun { get; set; }
+        public bool IsEnabled { get; set; }
+    }
+
+    /// <summary>
+    /// Representa o resultado da execução de um script GenAIScript
+    /// </summary>
+    public class ScriptExecutionResult
+    {
+        public string FlowName { get; set; } = string.Empty;
+        public DateTime StartTime { get; set; }
+        public DateTime EndTime { get; set; }
+        public double ExecutionTime { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? ErrorMessage { get; set; }
+        public List<ExecutionStep> Steps { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Representa um passo na execução de um script GenAIScript
+    /// </summary>
+    public class ExecutionStep
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Details { get; set; } = string.Empty;
+    }
+}

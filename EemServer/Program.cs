@@ -1,0 +1,100 @@
+using Microsoft.MCP;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Azure.Storage.Blobs;
+using Microsoft.Azure.Cosmos;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.Connectors.AzureAI;
+using Microsoft.SemanticKernel.Memory;
+using EemCore.Agents;
+using EemCore.Processing;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+// Configurar serviços necessários para o sistema Εεm
+builder.Services.AddLogging();
+
+// Adicionar Azure Storage
+builder.Services.AddSingleton(sp =>
+{
+    var connectionString = builder.Configuration["Azure:StorageConnectionString"]
+        ?? throw new InvalidOperationException("Conexão com Azure Storage não configurada");
+        
+    return new BlobServiceClient(connectionString);
+});
+
+// Adicionar Cosmos DB
+builder.Services.AddSingleton(sp =>
+{
+    var endpoint = builder.Configuration["Azure:CosmosEndpoint"]
+        ?? throw new InvalidOperationException("Endpoint Cosmos DB não configurado");
+    var key = builder.Configuration["Azure:CosmosKey"]
+        ?? throw new InvalidOperationException("Key Cosmos DB não configurada");
+        
+    return new CosmosClient(endpoint, key);
+});
+
+// Configurar Azure OpenAI
+builder.Services.AddSingleton(sp =>
+{
+    var endpoint = builder.Configuration["Azure:OpenAIEndpoint"]
+        ?? throw new InvalidOperationException("Endpoint OpenAI não configurado");
+    var key = builder.Configuration["Azure:OpenAIKey"]
+        ?? throw new InvalidOperationException("Key OpenAI não configurada");
+        
+    return new AzureOpenAIClient(new Uri(endpoint), new Azure.AzureKeyCredential(key));
+});
+
+// Configurar Semantic Kernel
+builder.Services.AddSingleton(sp =>
+{
+    var kernelBuilder = Kernel.CreateBuilder();
+    
+    // Adicionar serviço Azure OpenAI
+    kernelBuilder.AddAzureOpenAIChatCompletion(
+        builder.Configuration["Azure:OpenAIDeployment"] ?? "gpt-4",
+        builder.Configuration["Azure:OpenAIEndpoint"] ?? "",
+        builder.Configuration["Azure:OpenAIKey"] ?? ""
+    );
+    
+    return kernelBuilder.Build();
+});
+
+// Configurar memória semântica
+builder.Services.AddSingleton<ISemanticTextMemory>(sp =>
+{
+    return new MemoryBuilder()
+        .WithAzureOpenAITextEmbeddingGeneration(
+            builder.Configuration["Azure:OpenAIEmbeddingDeployment"] ?? "text-embedding-ada-002",
+            builder.Configuration["Azure:OpenAIEndpoint"] ?? "",
+            builder.Configuration["Azure:OpenAIKey"] ?? ""
+        )
+        .WithMemoryStore(new VolatileMemoryStore())  // Em produção, use Azure Cognitive Search
+        .Build();
+});
+
+// Registrar os agentes do Εεm
+builder.Services.AddTransient<CaptureAgent>();
+builder.Services.AddTransient<ContextAgent>();
+builder.Services.AddTransient<EulerianAgent>();
+builder.Services.AddTransient<CorrelationAgent>();
+builder.Services.AddTransient<GenAIScriptProcessor>();
+
+// Configurar servidor MCP
+builder.Services
+    .AddMcpServer()
+    .WithStdioServerTransport()
+    .AddMcpToolType<CaptureAgent>()
+    .AddMcpToolType<ContextAgent>()
+    .AddMcpToolType<EulerianAgent>()
+    .AddMcpToolType<CorrelationAgent>()
+    .AddMcpToolType<GenAIScriptProcessor>();
+
+// Construir e executar o host
+var host = builder.Build();
+
+Console.WriteLine("Iniciando servidor MCP para Εεm...");
+Console.WriteLine("Aguardando requisições MCP...");
+
+await host.RunAsync();
